@@ -99,37 +99,6 @@ The goal is not just more data. The goal is faster decisions with less friction.
 
 ---
 
-## Installation
-
-### Requirements
-- [RuneLite](https://runelite.net/)
-- **Java 11 JDK**
-- Git
-
-### Clone the repository
-```bash
-git clone https://github.com/Kalsupes/RaidParty.git
-cd RaidParty
-```
-
-### Build the plugin
-```bash
-./gradlew build
-```
-
-On Windows Command Prompt or PowerShell, use:
-
-```powershell
-gradlew.bat build
-```
-
-### Run in the RuneLite development harness
-```bash
-./gradlew run
-```
-
----
-
 ## Configuration highlights
 
 RaidParty includes configurable options for:
@@ -141,18 +110,6 @@ RaidParty includes configurable options for:
 - virtual level display
 
 This allows teams to keep the core workflow consistent while tailoring the visual and audio feedback to personal preference.
-
----
-
-## Project structure
-
-```text
-src/main/java/        Main plugin source
-src/main/resources/   Plugin assets and UI resources
-images/               Repository screenshots and GIFs for documentation
-build.gradle          Gradle build configuration
-runelite-plugin.properties
-```
 
 ---
 
