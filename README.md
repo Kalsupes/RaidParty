@@ -6,6 +6,11 @@
   <a href="https://discord.gg/bosscape"><img alt="Discord" src="https://img.shields.io/badge/Discord-Join%20Bosscape-5865F2?logo=discord&logoColor=white"></a>
 </p>
 
+<p align="center">
+  <img src="images/raidparty_logo.png" alt="RaidParty Logo" width="200">
+</p>
+
+
 RaidParty is a RuneLite party plugin built for raid teams that want more visibility, faster communication, and better in-raid decision support. It expands the standard party experience with a dedicated team panel, shared player-state syncing, ready checks, loot-rule visibility, raid stat overlays, and a ping system designed for high-tempo PvM.
 
 The plugin is aimed at coordinated groups running content such as Tombs of Amascut, Chambers of Xeric, and Theatre of Blood, while remaining useful anywhere a party wants better shared awareness; such as in the wilderness.
