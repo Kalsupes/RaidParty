@@ -286,11 +286,11 @@ public class RaidPartyPanel extends PluginPanel {
         lootRuleRow.setOpaque(false);
         lootRuleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 26));
 
-        JButton ffaBtn = createLootBtn("FFA", LootRule.FFA, new Color(225, 175, 50), new Color(180, 140, 40),
+        JButton ffaBtn = createLootBtn("FFA", LootRule.FFA, new Color(175, 0, 175), new Color(140, 0, 140),
                 lootRuleRow);
         JButton noneBtn = createLootBtn("None", LootRule.UNSPECIFIED, new Color(120, 120, 120), new Color(90, 90, 90),
                 lootRuleRow);
-        JButton splitBtn = createLootBtn("Split", LootRule.SPLIT, new Color(50, 150, 220), new Color(40, 120, 180),
+        JButton splitBtn = createLootBtn("SPLIT", LootRule.SPLIT, new Color(0, 191, 255), new Color(0, 150, 200),
                 lootRuleRow);
 
         lootRuleRow.add(ffaBtn);

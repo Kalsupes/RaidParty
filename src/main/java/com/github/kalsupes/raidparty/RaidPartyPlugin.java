@@ -57,10 +57,6 @@ import java.util.Map;
  * Panel"
  * (BSD-2-Clause). See LICENSE-THESTONEDTURTLE.
  * https://github.com/TheStonedTurtle/party-panel
- *
- * ToA point tracking and unique chance math adapted from LlemonDuck's
- * "Tombs of Amascut" plugin (BSD-2-Clause). See LICENSE-LLEMONDUCK.
- * https://github.com/LlemonDuck/tombs-of-amascut
  */
 public class RaidPartyPlugin extends Plugin {
     @Inject
@@ -100,11 +96,7 @@ public class RaidPartyPlugin extends Plugin {
     @Inject
     private RaidPartyOverlay raidpartyOverlay;
 
-    @Inject
-    private RaidPartyStatsOverlay statsOverlay;
 
-    @Inject
-    private RaidTracker raidTracker;
 
     @Inject
     private net.runelite.client.eventbus.EventBus eventBus;
@@ -193,8 +185,6 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(BossPingMessage.class);
 
             overlayManager.add(raidpartyOverlay);
-            overlayManager.add(statsOverlay);
-            eventBus.register(raidTracker);
 
             lastLogout = Instant.now();
         } catch (Exception e) {
@@ -222,8 +212,6 @@ public class RaidPartyPlugin extends Plugin {
         clientToolbar.removeNavigation(navButton);
         addedButton = false;
         overlayManager.remove(raidpartyOverlay);
-        overlayManager.remove(statsOverlay);
-        eventBus.unregister(raidTracker);
         keyManager.unregisterKeyListener(safePingHotkey);
         keyManager.unregisterKeyListener(cautionPingHotkey);
         keyManager.unregisterKeyListener(dangerPingHotkey);
@@ -516,16 +504,41 @@ public class RaidPartyPlugin extends Plugin {
             mergeDeltaSync(existing, event);
         }
 
-        partyData.put(event.getMemberId(), event);
-
         // Determine if this is US
         boolean isLocal = event.getMemberId() == partyService.getLocalMember().getMemberId();
+
+        // Chat notifications for remote party members' ready/loot changes
+        if (!isLocal && event.getUsername() != null && !event.getUsername().isEmpty()) {
+            // Ready state change
+            if (existing == null || existing.getReadyState() != event.getReadyState()) {
+                if (event.getReadyState() == 1) {
+                    postPartyChat(event.getUsername() + " is <col=00ff00>Ready</col>");
+                } else if (event.getReadyState() == 2) {
+                    postPartyChat(event.getUsername() + " is <col=ff0000>Not Ready</col>");
+                }
+            }
+            // Loot rule change
+            if (existing == null || existing.getLootRule() != event.getLootRule()) {
+                if (event.getLootRule() != null && event.getLootRule() != LootRule.UNSPECIFIED) {
+                    String color = event.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
+                    postPartyChat(event.getUsername() + " set loot to <col=" + color + ">" + event.getLootRule() + "</col>");
+                }
+            }
+        }
+
+        partyData.put(event.getMemberId(), event);
 
         javax.swing.SwingUtilities.invokeLater(() -> {
             if (panel != null) {
                 panel.onPlayerSync(event);
             }
         });
+    }
+
+    private void postPartyChat(String message) {
+        final String chatMsg = "<col=00ffff>[RaidParty]</col> " + message;
+        clientThread.invokeLater(
+                () -> client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", chatMsg, ""));
     }
 
     // --- LIVE PARTY SYNC LOGIC ---
@@ -732,9 +745,6 @@ public class RaidPartyPlugin extends Plugin {
         syncCopy.setCombatLevel(local.getCombatLevel());
         syncCopy.setUsername(local.getUsername());
         syncCopy.setActivePrayers(local.getActivePrayers());
-        syncCopy.setToaPoints(local.getToaPoints());
-        syncCopy.setCoxPoints(local.getCoxPoints());
-        syncCopy.setTobDeaths(local.getTobDeaths());
         syncCopy.setLootRule(local.getLootRule());
         syncCopy.setStamina(local.getStamina());
         syncCopy.setPoison(local.getPoison());
@@ -994,21 +1004,14 @@ public class RaidPartyPlugin extends Plugin {
         localReadyState = state;
         cachedLocalSync.setReadyState(state);
 
-        // Broadcast to party chat from the plugin
-        String name = getLocalPlayerName();
-        if (name == null)
-            name = "Unknown";
-        String statusText = state == 1 ? "is \u003ccol=00ff00\u003eReady\u003c/col\u003e"
-                : "is \u003ccol=ff0000\u003eNot Ready\u003c/col\u003e";
-
         if (state > 0) {
-            final String chatMsg = "\u003ccol=00ffff\u003e[RaidParty]\u003c/col\u003e " + name + " " + statusText;
-            // Show locally
-            clientThread.invokeLater(
-                    () -> client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", chatMsg, ""));
+            String name = getLocalPlayerName();
+            if (name == null) name = "Unknown";
+            String statusText = state == 1 ? "is <col=00ff00>Ready</col>"
+                    : "is <col=ff0000>Not Ready</col>";
+            postPartyChat(name + " " + statusText);
         }
 
-        // Send to party
         if (partyService.isInParty()) {
             sendPartySyncMessage();
         }
@@ -1018,6 +1021,15 @@ public class RaidPartyPlugin extends Plugin {
     public void setLootRule(LootRule rule) {
         localLootRule = rule;
         cachedLocalSync.setLootRule(rule);
+
+        // Broadcast to party chat locally
+        if (rule != LootRule.UNSPECIFIED) {
+            String name = getLocalPlayerName();
+            if (name == null) name = "Unknown";
+            String color = rule == LootRule.FFA ? "af00af" : "00bfff";
+            postPartyChat(name + " set loot to <col=" + color + ">" + rule + "</col>");
+        }
+
         if (partyService.isInParty()) {
             sendPartySyncMessage();
         }

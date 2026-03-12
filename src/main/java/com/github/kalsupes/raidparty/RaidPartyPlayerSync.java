@@ -43,10 +43,7 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     // Index = Skill.ordinal() * 2 (boosted), Skill.ordinal() * 2 + 1 (real)
     private int[] skillLevels;
 
-    // --- Phase 5: Raid Metrics ---
-    private int toaPoints;
-    private int coxPoints;
-    private int tobDeaths;
+
 
     // --- Phase 6: Loot Distribution ---
     private LootRule lootRule;

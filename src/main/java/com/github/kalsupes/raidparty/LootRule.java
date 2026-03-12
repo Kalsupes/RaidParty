@@ -3,7 +3,7 @@ package com.github.kalsupes.raidparty;
 public enum LootRule {
     UNSPECIFIED("Unspecified"),
     FFA("FFA"),
-    SPLIT("Split");
+    SPLIT("SPLIT");
 
     private final String title;
 

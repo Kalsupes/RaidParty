@@ -33,6 +33,7 @@ import java.util.Map;
 
 public class RaidPartyPlayerCard extends JPanel {
     private static final Dimension IMAGE_SIZE = new Dimension(24, 24);
+    private static final Color FFA_PURPLE = new Color(175, 0, 175);
     private static final Color GOLD = new Color(225, 175, 50);
     private static final Color HP_GREEN = new Color(60, 200, 80);
     private static final Color HP_RED = new Color(220, 50, 50);
@@ -314,8 +315,8 @@ public class RaidPartyPlayerCard extends JPanel {
         // Add Loot Rule Badge
         if (syncData != null && syncData.getLootRule() != null && syncData.getLootRule() != LootRule.UNSPECIFIED) {
             final boolean isFfa = syncData.getLootRule() == LootRule.FFA;
-            final Color badgeBg = isFfa ? new Color(GOLD.getRed(), GOLD.getGreen(), GOLD.getBlue(), 180)
-                    : new Color(50, 150, 220, 180); // Blue for Split
+            final Color badgeBg = isFfa ? new Color(FFA_PURPLE.getRed(), FFA_PURPLE.getGreen(), FFA_PURPLE.getBlue(), 180)
+                    : new Color(0, 191, 255, 180); // Cyan-blue for Split
 
             JLabel lootBadge = new JLabel(isFfa ? "FFA" : "SPLIT", SwingConstants.CENTER) {
                 @Override
