@@ -1,0 +1,260 @@
+package com.example;
+
+import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.LinkBrowser;
+import net.runelite.client.util.ImageUtil;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.image.BufferedImage;
+import java.util.List;
+
+public class BosscapePanel extends PluginPanel
+{
+	private final BosscapePlugin plugin;
+	
+    // Container for swapping views (CardLayout or just removeAll/add)
+    private final JPanel mainContainer = new JPanel(new BorderLayout());
+    
+    // Views
+    private final JPanel listView = new JPanel(new BorderLayout());
+    private final JPanel listContainer = new JPanel() {
+        @Override
+        public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            if (getParent() instanceof JViewport) {
+                d.width = ((JViewport)getParent()).getWidth(); // Constrain width
+            }
+            return d;
+        }
+    };
+    
+    // Colors
+    private static final Color ACCENT_GOLD = Color.decode("#FFD700"); // Gold
+
+	public BosscapePanel(BosscapePlugin plugin)
+	{
+		super();
+		this.plugin = plugin;
+
+		setLayout(new BorderLayout());
+        
+        // Init List View
+        initListView();
+        
+        mainContainer.add(listView, BorderLayout.CENTER);
+        add(mainContainer, BorderLayout.CENTER);
+	}
+    
+    public BosscapePlugin getPlugin() {
+        return plugin;
+    }
+
+    private void initListView() {
+        JPanel northPanel = new JPanel();
+		northPanel.setLayout(new BoxLayout(northPanel, BoxLayout.Y_AXIS));
+		northPanel.setOpaque(false);
+        northPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+		
+        // Header
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        JLabel title = new JLabel("Bosscape");
+        title.setForeground(ACCENT_GOLD);
+        title.setFont(FontManager.getRunescapeBoldFont().deriveFont(24f));
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+        header.add(title, BorderLayout.CENTER);
+        
+        // Discord Icon/Button
+        JButton discordBtn = new JButton();
+        discordBtn.setToolTipText("Join the Bosscape Discord");
+        try {
+            java.awt.image.BufferedImage img = net.runelite.client.util.ImageUtil.loadImageResource(BosscapePlugin.class, "/discord_logo.png");
+            if (img != null) {
+                // Calculate proportional scale to fit within 28x28 bounding box without stretching
+                double scale = Math.min(28.0 / img.getWidth(), 28.0 / img.getHeight());
+                int newWidth = (int) (img.getWidth() * scale);
+                int newHeight = (int) (img.getHeight() * scale);
+                discordBtn.setIcon(new javax.swing.ImageIcon(net.runelite.client.util.ImageUtil.resizeImage(img, newWidth, newHeight)));
+            } else {
+                discordBtn.setText("Discord");
+                discordBtn.setFont(FontManager.getRunescapeSmallFont());
+            }
+        } catch (Exception ex) {
+            discordBtn.setText("Discord");
+            discordBtn.setFont(FontManager.getRunescapeSmallFont());
+        }
+        discordBtn.setBorder(new javax.swing.border.EmptyBorder(4, 4, 4, 4));
+        discordBtn.setContentAreaFilled(false);
+        discordBtn.setFocusPainted(false);
+        discordBtn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        discordBtn.addActionListener(e -> LinkBrowser.browse("https://discord.gg/Bosscape"));
+        discordBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                discordBtn.setContentAreaFilled(true);
+                discordBtn.setBackground(new Color(255, 255, 255, 20)); // Subtle highlight
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                discordBtn.setContentAreaFilled(false);
+            }
+        });
+        header.add(discordBtn, BorderLayout.EAST);
+        
+        northPanel.add(header);
+        
+        northPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        
+        // Actions Grid (Host Raid / Host Boss)
+        JPanel actions = new JPanel(new GridLayout(1, 2, 8, 0));
+        actions.setOpaque(false);
+        
+        JButton raidBtn = new JButton("Host Raid");
+        raidBtn.setBackground(new Color(139, 105, 20)); // Gold/Brown
+        raidBtn.setForeground(Color.WHITE);
+        raidBtn.setFocusPainted(false);
+        raidBtn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        raidBtn.setFont(FontManager.getRunescapeBoldFont());
+        raidBtn.addActionListener(e -> showCreate("Raid"));
+        raidBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) { raidBtn.setBackground(new Color(170, 130, 25)); }
+            public void mouseExited(java.awt.event.MouseEvent e) { raidBtn.setBackground(new Color(139, 105, 20)); }
+        });
+        
+        JButton bossBtn = new JButton("Host Boss");
+        bossBtn.setBackground(new Color(0, 50, 100)); // Dark Blue
+        bossBtn.setForeground(Color.WHITE);
+        bossBtn.setFocusPainted(false);
+        bossBtn.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+        bossBtn.setFont(FontManager.getRunescapeBoldFont());
+        bossBtn.addActionListener(e -> showCreate("Boss"));
+        bossBtn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) { bossBtn.setBackground(new Color(0, 70, 140)); }
+            public void mouseExited(java.awt.event.MouseEvent e) { bossBtn.setBackground(new Color(0, 50, 100)); }
+        });
+        
+        actions.add(raidBtn);
+        actions.add(bossBtn);
+        northPanel.add(actions);
+        
+        northPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        
+        // Secondary Actions (History)
+        JPanel subActions = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        subActions.setOpaque(false);
+        JButton historyBtn = new JButton("View History");
+        historyBtn.setFont(FontManager.getRunescapeSmallFont());
+        historyBtn.addActionListener(e -> LinkBrowser.browse("http://127.0.0.1:5000/dashboard/history"));
+        subActions.add(historyBtn);
+        northPanel.add(subActions);
+        
+        northPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        
+        // Refresh Button
+        JButton refreshBtn = new JButton("Refresh Queue List");
+        refreshBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        refreshBtn.addActionListener(this::onRefresh);
+        northPanel.add(refreshBtn);
+		
+		listView.add(northPanel, BorderLayout.NORTH);
+		
+		// List
+		listContainer.setLayout(new BoxLayout(listContainer, BoxLayout.Y_AXIS));
+		listContainer.setOpaque(false);
+		
+		JScrollPane scrollPane = new JScrollPane(listContainer);
+		scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		scrollPane.setBorder(null);
+		listView.add(scrollPane, BorderLayout.CENTER);
+    }
+
+	private void onRefresh(ActionEvent e)
+	{
+        listContainer.removeAll();
+        JLabel loading = new JLabel("Loading...");
+        loading.setForeground(Color.GRAY);
+        loading.setAlignmentX(Component.CENTER_ALIGNMENT);
+        listContainer.add(Box.createVerticalGlue());
+        listContainer.add(loading);
+        listContainer.add(Box.createVerticalGlue());
+        listContainer.revalidate();
+        listContainer.repaint();
+        
+		plugin.refreshQueues();
+	}
+    
+    public void showDetails(QueueItem item) {
+        SwingUtilities.invokeLater(() -> {
+            mainContainer.removeAll();
+            mainContainer.add(new QueueDetailsPanel(plugin, this, item), BorderLayout.CENTER);
+            mainContainer.revalidate();
+            mainContainer.repaint();
+        });
+    }
+    
+    public void showList() {
+        SwingUtilities.invokeLater(() -> {
+            mainContainer.removeAll();
+            mainContainer.add(listView, BorderLayout.CENTER);
+            mainContainer.revalidate();
+            mainContainer.repaint();
+        });
+    }
+
+    public void showCreate(String type) {
+        SwingUtilities.invokeLater(() -> {
+            mainContainer.removeAll();
+            mainContainer.add(new CreateQueuePanel(plugin, this, type), BorderLayout.CENTER);
+            mainContainer.revalidate();
+            mainContainer.repaint();
+        });
+    }
+    
+    public void updateError(String message) {
+        SwingUtilities.invokeLater(() -> {
+            listContainer.removeAll();
+            JLabel error = new JLabel("<html><center>" + message + "</center></html>");
+            error.setForeground(Color.RED);
+            error.setAlignmentX(Component.CENTER_ALIGNMENT);
+            listContainer.add(Box.createVerticalGlue());
+            listContainer.add(error);
+            listContainer.add(Box.createVerticalGlue());
+            listContainer.revalidate();
+            listContainer.repaint();
+        });
+    }
+	
+    public void updateList(List<QueueItem> items) {
+        SwingUtilities.invokeLater(() -> {
+            listContainer.removeAll();
+            listContainer.setLayout(new BoxLayout(listContainer, BoxLayout.Y_AXIS)); // Switch to BoxLayout
+            
+            if (items == null || items.isEmpty()) {
+                listContainer.add(Box.createVerticalStrut(20));
+                JLabel empty = new JLabel("No active queues.");
+                empty.setForeground(Color.GRAY);
+                empty.setAlignmentX(Component.CENTER_ALIGNMENT);
+                listContainer.add(empty);
+                listContainer.add(Box.createVerticalGlue());
+            } else {
+                for (QueueItem item : items) {
+                    QueueItemPanel panel = new QueueItemPanel(item, this);
+                    
+                    JPanel wrapper = new JPanel(new BorderLayout());
+                    wrapper.setBorder(new EmptyBorder(0, 0, 8, 0)); // Gap between items
+                    wrapper.setOpaque(false);
+                    wrapper.add(panel, BorderLayout.CENTER);
+                    
+                    listContainer.add(wrapper);
+                }
+                listContainer.add(Box.createVerticalGlue()); // Push items to the top
+            }
+            
+            listContainer.revalidate();
+            listContainer.repaint();
+        });
+    }
+}

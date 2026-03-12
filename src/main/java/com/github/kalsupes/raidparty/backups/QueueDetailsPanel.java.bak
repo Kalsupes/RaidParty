@@ -1,0 +1,355 @@
+package com.example;
+
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
+import net.runelite.client.util.LinkBrowser;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import net.runelite.api.ItemID;
+import net.runelite.client.game.ItemManager;
+
+public class QueueDetailsPanel extends JPanel
+{
+    private final BosscapePlugin plugin;
+    private final BosscapePanel parent;
+    private final QueueItem item;
+    
+    // Colors
+    private static final Color GOLD = Color.decode("#FFD700");
+    private static final Color SOFT_BLUE = Color.decode("#5dade2");
+
+    public QueueDetailsPanel(BosscapePlugin plugin, BosscapePanel parent, QueueItem item)
+    {
+        this.plugin = plugin;
+        this.parent = parent;
+        this.item = item;
+        
+        setLayout(new BorderLayout());
+        setBackground(ColorScheme.DARK_GRAY_COLOR);
+        
+        // --- Determine Roles ---
+        String localName = plugin.getLocalPlayerName();
+        boolean isMember = false;
+        boolean isHost = false;
+        
+        String cleanHost = item.host != null ? item.host.replace("\u00A0", " ") : "";
+        
+        // 1. Session / API Identity Verification (Independent of Login Screen)
+        if (plugin.isMyQueue(item.id)) {
+            isHost = true;
+        } else {
+            String authHost = plugin.getAuthorizedHostRsn();
+            if (authHost != null && !cleanHost.isEmpty() && cleanHost.equalsIgnoreCase(authHost)) {
+                isHost = true;
+            }
+        }
+        
+        // 2. In-Game Local Identity Verification (Login Screen restricted)
+        if (localName != null) {
+            String cleanLocal = localName.replace("\u00A0", " ");
+            System.out.println("[Bosscape] DEBUG: Local=" + cleanLocal + " | Host=" + cleanHost); 
+            
+            if (!isHost && !cleanHost.isEmpty() && cleanHost.equalsIgnoreCase(cleanLocal)) {
+                isHost = true; // Name match fallback
+            }
+            
+            // Check Member
+            if (item.members != null) {
+                for (QueueItem.Member m : item.members) {
+                    if (m.rsn.equalsIgnoreCase(cleanLocal)) {
+                        isMember = true;
+                        
+                        // Fallback check
+                        if (!cleanHost.isEmpty() && m.rsn.equalsIgnoreCase(cleanHost)) {
+                            isHost = true; 
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // --- Header (Back + Title) ---
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBorder(new EmptyBorder(10, 10, 10, 10));
+        header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        
+        JButton backBtn = new JButton("Back");
+        backBtn.addActionListener(e -> parent.showList());
+        header.add(backBtn, BorderLayout.WEST);
+        
+        JLabel title = new JLabel("Queue Details");
+        title.setFont(FontManager.getRunescapeBoldFont());
+        title.setForeground(Color.WHITE);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+        header.add(title, BorderLayout.CENTER);
+        
+        add(header, BorderLayout.NORTH);
+        
+        // --- Content ---
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Boss Name
+        JLabel bossName = new JLabel(item.boss_name);
+        bossName.setFont(FontManager.getRunescapeBoldFont());
+        // Determine Color
+        boolean isRaid = item.boss_name.contains("ToA") || item.boss_name.contains("CoX") || item.boss_name.contains("ToB") || item.boss_name.contains("Fractured");
+        bossName.setForeground(isRaid ? GOLD : SOFT_BLUE);
+        bossName.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(bossName);
+        
+        content.add(Box.createRigidArea(new Dimension(0, 5)));
+        
+        // Region & Host & World
+        JPanel metaPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        metaPanel.setOpaque(false);
+        metaPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JLabel meta = new JLabel(item.region + " | Host: " + item.host);
+        meta.setForeground(Color.LIGHT_GRAY);
+        meta.setFont(FontManager.getRunescapeSmallFont());
+        metaPanel.add(meta);
+        
+        if (item.world > 0) {
+            JLabel worldLbl = new JLabel(" | World: " + item.world);
+            worldLbl.setForeground(Color.CYAN); // Highlight World
+            worldLbl.setFont(FontManager.getRunescapeSmallFont());
+            metaPanel.add(worldLbl);
+            
+            JButton hopBtn = new JButton("Hop");
+            hopBtn.setPreferredSize(new Dimension(50, 20));
+            hopBtn.setFont(FontManager.getRunescapeSmallFont());
+            hopBtn.setMargin(new Insets(0,0,0,0));
+            hopBtn.addActionListener(e -> plugin.hopToWorld(item.world));
+            metaPanel.add(Box.createRigidArea(new Dimension(5, 0)));
+            metaPanel.add(hopBtn);
+        }
+        
+        content.add(metaPanel);
+        
+        content.add(Box.createRigidArea(new Dimension(0, 15)));
+        
+        // Description (Notes)
+        if (item.description != null && !item.description.isEmpty()) {
+            JLabel notesLabel = new JLabel("Notes:");
+            notesLabel.setForeground(GOLD); // Header in Gold
+            notesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+            content.add(notesLabel);
+            
+            JTextArea notes = new JTextArea(item.description);
+            notes.setLineWrap(true);
+            notes.setWrapStyleWord(true);
+            notes.setEditable(false);
+            notes.setOpaque(false);
+            notes.setForeground(Color.WHITE);
+            notes.setAlignmentX(Component.LEFT_ALIGNMENT);
+            content.add(notes);
+            content.add(Box.createRigidArea(new Dimension(0, 15)));
+        }
+
+        // Hub Party Details
+        JLabel partyHeader = new JLabel("Party Hub:");
+        partyHeader.setForeground(SOFT_BLUE);
+        partyHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(partyHeader);
+        
+        String pass = "BSID" + item.id;
+        JLabel passLbl = new JLabel("Passphrase: " + pass);
+        passLbl.setForeground(Color.LIGHT_GRAY);
+        passLbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(passLbl);
+        
+        JLabel autoJoinAdvice = new JLabel("<html>(Plugin automatically sets this phrase upon joining)</html>");
+        autoJoinAdvice.setFont(FontManager.getRunescapeSmallFont());
+        autoJoinAdvice.setForeground(Color.GRAY);
+        autoJoinAdvice.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(autoJoinAdvice);
+
+        
+        // Members List
+        JLabel membersLabel = new JLabel("Members (" + item.members_count + "/" + item.max_members + "):");
+        membersLabel.setForeground(GOLD);
+        membersLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(membersLabel);
+        content.add(Box.createRigidArea(new Dimension(0, 5)));
+        
+        if (item.members != null) {
+            for (QueueItem.Member m : item.members) {
+                 addMemberRow(content, m, isHost);
+            }
+        }
+        
+        add(content, BorderLayout.CENTER);
+        
+        // --- Footer (Join/Leave/Host Actions) ---
+        JPanel footer = new JPanel(new GridLayout(0, 1, 5, 5));
+        footer.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // --- HOST CONTROLS ---
+        if (isHost) {
+            JButton startBtn = new JButton("Start Queue");
+            startBtn.setBackground(new Color(0, 100, 0));
+            startBtn.setForeground(Color.WHITE);
+            startBtn.setFont(FontManager.getRunescapeBoldFont());
+            startBtn.addActionListener(e -> plugin.startQueue(item.id));
+            footer.add(startBtn);
+            
+            JButton deleteBtn = new JButton("Close Queue");
+            deleteBtn.setBackground(new Color(139, 0, 0));
+            deleteBtn.setForeground(Color.WHITE);
+            deleteBtn.setFont(FontManager.getRunescapeBoldFont());
+            deleteBtn.addActionListener(e -> {
+                 int result = JOptionPane.showConfirmDialog(this, "Close this queue permanently?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+                 if (result == JOptionPane.YES_OPTION) plugin.deleteQueue(item.id);
+            });
+            footer.add(deleteBtn);
+        }
+        
+        // --- MEMBER ACTIONS ---
+        if (isHost) {
+            // Already handled in Host Panel area above.
+        } else if (isMember) {
+            if (item.world != 0) {
+                JButton hopBtn = new JButton("Hop to World " + item.world);
+                hopBtn.setBackground(new Color(0, 80, 150)); // RuneLite Blue
+                hopBtn.setForeground(Color.WHITE);
+                hopBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                hopBtn.setFocusPainted(false);
+                hopBtn.setFont(FontManager.getRunescapeBoldFont());
+                hopBtn.addActionListener(e -> plugin.hopToWorld(item.world));
+                hopBtn.addMouseListener(new MouseAdapter() {
+                    public void mouseEntered(MouseEvent e) { hopBtn.setBackground(new Color(0, 100, 180)); }
+                    public void mouseExited(MouseEvent e) { hopBtn.setBackground(new Color(0, 80, 150)); }
+                });
+                footer.add(hopBtn);
+            }
+        
+            JButton leaveBtn = new JButton("Leave Queue");
+            leaveBtn.setBackground(new Color(139, 0, 0));
+            leaveBtn.setForeground(Color.WHITE);
+            leaveBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            leaveBtn.setFocusPainted(false);
+            leaveBtn.setFont(FontManager.getRunescapeBoldFont());
+            leaveBtn.addActionListener(e -> {
+                int result = JOptionPane.showConfirmDialog(this, "Leave queue?", "Confirm", JOptionPane.YES_NO_OPTION);
+                if (result == JOptionPane.YES_OPTION) {
+                    plugin.leaveQueue(item.id);
+                    parent.showList(); // Auto-return to list
+                }
+            });
+            leaveBtn.addMouseListener(new MouseAdapter() {
+                public void mouseEntered(MouseEvent e) { leaveBtn.setBackground(new Color(170, 0, 0)); }
+                public void mouseExited(MouseEvent e) { leaveBtn.setBackground(new Color(139, 0, 0)); }
+            });
+            footer.add(leaveBtn);
+        } else {
+            JButton joinBtn = new JButton("Join Queue");
+            joinBtn.setBackground(new Color(0, 100, 0));
+            joinBtn.setForeground(Color.WHITE);
+            joinBtn.setFont(FontManager.getRunescapeBoldFont());
+            joinBtn.addActionListener(e -> {
+                String pref = "any";
+                String hostType = item.loot_type != null ? item.loot_type.toLowerCase() : "";
+                
+                if (hostType.isEmpty() || hostType.contains("both") || hostType.contains("mixed")) {
+                    String[] options = {"Split", "FFA"};
+                    int choice = JOptionPane.showOptionDialog(this, "Select your Loot Preference:", "Join Queue", 
+                        JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                        
+                    if (choice == -1) return; // Cancelled
+                    pref = choice == 0 ? "split" : "ffa";
+                } else {
+                    pref = hostType; // Inherit queue's strict setting
+                    int result = JOptionPane.showConfirmDialog(this, "Join queue?", "Confirm", JOptionPane.YES_NO_OPTION);
+                    if (result != JOptionPane.YES_OPTION) return;
+                }
+                
+                plugin.joinQueue(item.id, pref);
+            });
+            footer.add(joinBtn);
+        }
+        
+        add(footer, BorderLayout.SOUTH);
+    }
+    
+    // Helper to add Member Row with Kick
+    private void addMemberRow(JPanel contentPanel, QueueItem.Member m, boolean isHost) {
+        JPanel row = new JPanel(new BorderLayout());
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Build Left Panel containing Icon + Name
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        leftPanel.setOpaque(false);
+        
+        // Loot Preference Icon
+        if (m.loot_preference != null) {
+            ItemManager im = plugin.getItemManager();
+            if (im != null) {
+                String pref = m.loot_preference.toLowerCase();
+                int iconId = -1;
+                if (pref.contains("split")) iconId = ItemID.COINS_995;
+                else if (pref.contains("ffa")) iconId = 13307;
+                
+                if (iconId != -1) {
+                    JLabel iconLbl = new JLabel();
+                    iconLbl.setIcon(new ImageIcon(im.getImage(iconId, 1, false)));
+                    iconLbl.setToolTipText(pref.contains("split") ? "Split" : "FFA");
+                    leftPanel.add(iconLbl);
+                }
+            }
+        }
+        
+        JLabel rsn = new JLabel(m.rsn);
+        rsn.setForeground(Color.WHITE);
+        rsn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        
+        // Browser Link Logic
+        rsn.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                try {
+                    LinkBrowser.browse("https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1=" + m.rsn);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(QueueDetailsPanel.this, "Failed to open browser: " + ex.getMessage());
+                }
+            }
+            public void mouseEntered(MouseEvent e) { rsn.setForeground(GOLD); }
+            public void mouseExited(MouseEvent e) { rsn.setForeground(Color.WHITE); }
+        });
+        
+        leftPanel.add(rsn);
+        row.add(leftPanel, BorderLayout.CENTER);
+        
+        // Kick Button (Only for Host, and don't kick yourself)
+        // A target is the host if their RSN matches the `item.host` string.
+        boolean targetIsHost = false;
+        if (item.host != null && m.rsn.replace("\u00A0", " ").equalsIgnoreCase(item.host.replace("\u00A0", " "))) {
+            targetIsHost = true;
+        }
+
+        if (isHost && !targetIsHost) {
+            JButton kickBtn = new JButton("X");
+            kickBtn.setBackground(Color.RED);
+            kickBtn.setForeground(Color.WHITE);
+            kickBtn.setMargin(new Insets(0, 5, 0, 5));
+            kickBtn.setPreferredSize(new Dimension(25, 20));
+            kickBtn.setToolTipText("Kick " + m.rsn);
+            kickBtn.addActionListener(e -> {
+                 int result = JOptionPane.showConfirmDialog(this, "Kick " + m.rsn + "?", "Confirm Kick", JOptionPane.YES_NO_OPTION);
+                 if (result == JOptionPane.YES_OPTION) {
+                     plugin.kickMember(item.id, m.discord_id);
+                 }
+            });
+            row.add(kickBtn, BorderLayout.EAST);
+        }
+        
+        contentPanel.add(row);
+    }
+
+}

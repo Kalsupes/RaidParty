@@ -1,0 +1,190 @@
+package com.example;
+
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
+import net.runelite.client.ui.PluginPanel;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+
+public class CreateQueuePanel extends JPanel
+{
+    private final BosscapePlugin plugin;
+    private final BosscapePanel parent;
+    
+    // Form Fields
+    private final JComboBox<String> bossSelect;
+    private final JComboBox<String> regionSelect;
+    private final JComboBox<String> roleSelect;
+    private final JComboBox<String> vcSelect;
+    private final JComboBox<String> lootSelect;
+    // private final JComboBox<String> limitSelect; // Removed unused
+    private final JCheckBox waitlistCheck;
+    private final JPanel hostPrefPanel;
+    private final JComboBox<String> hostPrefSelect;
+    private final JTextArea descInput;
+
+    public CreateQueuePanel(BosscapePlugin plugin, BosscapePanel parent, String type)
+    {
+        this.plugin = plugin;
+        this.parent = parent;
+        
+        setLayout(new BorderLayout());
+        setBackground(ColorScheme.DARK_GRAY_COLOR);
+        
+        // --- Header ---
+        JPanel header = new JPanel(new BorderLayout());
+        header.setBorder(new EmptyBorder(10, 10, 10, 10));
+        header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+        
+        JButton backBtn = new JButton("Back");
+        backBtn.addActionListener(e -> parent.showList());
+        header.add(backBtn, BorderLayout.WEST);
+        
+        JLabel title = new JLabel("Host " + type);
+        title.setFont(FontManager.getRunescapeBoldFont());
+        title.setForeground(Color.WHITE);
+        title.setHorizontalAlignment(SwingConstants.CENTER);
+        header.add(title, BorderLayout.CENTER);
+        
+        add(header, BorderLayout.NORTH);
+        
+        // --- Form Content ---
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Boss
+        form.add(createLabel("Select Activity:"));
+        String[] activities;
+        if ("Raid".equalsIgnoreCase(type)) {
+            activities = new String[]{"Chambers of Xeric", "Theatre of Blood", "Tombs of Amascut", "TFA"};
+        } else {
+            activities = new String[]{
+                "Callisto", "Chaos Elemental", "Corporeal Beast", "Dagannoth Kings", "Giant Mole",
+                "Graardor", "Hueycoatl", "K'ril", "Kalphite Queen", "King Black Dragon", "Kree'arra",
+                "Nex", "Nightmare", "Royal Titans", "Sarachnis", "Scorpia", "Scurrius", "Tempoross",
+                "Venenatis", "Vet'ion", "Wintertodt", "Yama", "Zalcano", "Zilyana"
+            };
+        }
+        bossSelect = new JComboBox<>(activities);
+        form.add(bossSelect);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+        
+        // Type/Role
+        form.add(createLabel("Type / Role:"));
+        String[] roles = {"Learner", "Teacher", "Casual", "Experienced", "Sweat"};
+        roleSelect = new JComboBox<>(roles);
+        roleSelect.setSelectedItem("Casual");
+        form.add(roleSelect);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        // Region
+        form.add(createLabel("Region:"));
+        String[] regions = {"NA-East", "NA-West", "EU-West", "EU-Central", "AUS"}; // Matches user request + standard mappings
+        regionSelect = new JComboBox<>(regions);
+        form.add(regionSelect);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+        
+        // Voice Settings
+        form.add(createLabel("Voice Settings:"));
+        String[] vcs = {"No Voice Channel", "Private (Team Only)", "Public"};
+        vcSelect = new JComboBox<>(vcs);
+        form.add(vcSelect);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+        
+        // Loot Settings
+        form.add(createLabel("Loot Rules:"));
+        String[] loots = {"Split", "FFA", "Both (Mixed)"};
+        lootSelect = new JComboBox<>(loots);
+        form.add(lootSelect);
+        
+        // Host Pref (Hidden by default)
+        hostPrefPanel = new JPanel();
+        hostPrefPanel.setLayout(new BoxLayout(hostPrefPanel, BoxLayout.Y_AXIS));
+        hostPrefPanel.setOpaque(false);
+        hostPrefPanel.setVisible(false);
+        
+        hostPrefPanel.add(Box.createRigidArea(new Dimension(0, 5)));
+        JLabel prefLabel = createLabel("   Your Preference:"); // Indent
+        prefLabel.setForeground(Color.CYAN);
+        hostPrefPanel.add(prefLabel);
+        
+        String[] prefs = {"Split", "FFA"};
+        hostPrefSelect = new JComboBox<>(prefs);
+        hostPrefPanel.add(hostPrefSelect);
+        
+        form.add(hostPrefPanel);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+        
+        // Logic for Mixed
+        lootSelect.addActionListener(e -> {
+            boolean isMixed = "Both (Mixed)".equals(lootSelect.getSelectedItem());
+            hostPrefPanel.setVisible(isMixed);
+            form.revalidate();
+            form.repaint();
+        });
+        
+        // Waitlist
+        waitlistCheck = new JCheckBox("Allow Waitlist?");
+        waitlistCheck.setForeground(Color.ORANGE);
+        waitlistCheck.setOpaque(false);
+        form.add(waitlistCheck);
+        form.add(Box.createRigidArea(new Dimension(0, 10)));
+        
+        // Description
+        form.add(createLabel("Description / Notes:"));
+        descInput = new JTextArea(3, 20);
+        descInput.setLineWrap(true);
+        descInput.setWrapStyleWord(true);
+        form.add(new JScrollPane(descInput));
+        form.add(Box.createRigidArea(new Dimension(0, 15)));
+        
+        // Create Button
+        JButton createBtn = new JButton("Create Lobby");
+        createBtn.setBackground(new Color(0, 100, 0)); // Dark Green
+        createBtn.setForeground(Color.WHITE);
+        createBtn.setFont(FontManager.getRunescapeBoldFont());
+        createBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        createBtn.addActionListener(e -> {
+            String boss = (String) bossSelect.getSelectedItem();
+            if ("TFA".equals(boss)) boss = "The Fractured Archive";
+            String region = (String) regionSelect.getSelectedItem();
+            String desc = descInput.getText();
+            String role = (String) roleSelect.getSelectedItem();
+            
+            // Map VC to backend values
+            String rawVc = (String) vcSelect.getSelectedItem();
+            String vc = "none";
+            if (rawVc.contains("Private")) vc = "private";
+            else if (rawVc.contains("Public")) vc = "public";
+            
+            // Map Loot
+            String rawLoot = (String) lootSelect.getSelectedItem();
+            String loot = "split";
+            if ("FFA".equals(rawLoot)) loot = "ffa";
+            else if ("Both (Mixed)".equals(rawLoot)) loot = "both";
+            
+            String pref = (String) hostPrefSelect.getSelectedItem();
+            if (pref == null) pref = "split"; // Default fallback
+            pref = pref.toLowerCase();
+            
+            boolean waitlist = waitlistCheck.isSelected();
+            
+            if (boss != null && region != null) {
+                plugin.createQueue(boss, region, desc, role, vc, loot, pref, waitlist);
+            }
+        });
+        
+        form.add(createBtn);
+        
+        add(form, BorderLayout.CENTER);
+    }
+    
+    private JLabel createLabel(String text) {
+        JLabel lbl = new JLabel(text);
+        lbl.setForeground(Color.ORANGE);
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return lbl;
+    }
+}

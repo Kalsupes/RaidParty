@@ -1,0 +1,291 @@
+package com.example;
+
+import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.ui.FontManager;
+import javax.swing.*;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+
+import net.runelite.api.ItemID;
+import net.runelite.api.SpriteID;
+import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.SpriteManager;
+import net.runelite.client.util.AsyncBufferedImage;
+
+public class QueueItemPanel extends JPanel
+{
+    private static final Color BACKGROUND = Color.decode("#212121");
+    private static final Color HOVER_COLOR = Color.decode("#303030");
+    private static final Color TEXT_GRAY = Color.decode("#9E9E9E");
+    private static final Color GOLD = Color.decode("#FFD700");
+    private static final Color SOFT_BLUE = Color.decode("#5dade2");
+    private static final Color RED = Color.decode("#E74C3C"); // For "Full"
+    private static final Color GREEN = Color.decode("#2ECC71"); // For "Open"
+    
+    private boolean isRaid;
+    
+    private final BosscapePanel parent;
+    private final QueueItem item;
+    
+    public QueueItemPanel(QueueItem item, BosscapePanel parent)
+    {
+        this.parent = parent;
+        this.item = item;
+        
+        setLayout(new GridBagLayout());
+        setOpaque(false); // Let paint handle background
+        setBorder(new EmptyBorder(5, 5, 5, 5)); // Outer padding
+        
+        GridBagConstraints c = new GridBagConstraints();
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.weightx = 1.0;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.NORTHWEST;
+        
+        // --- Row 1: Header (Boss Name + Loot Icon + Status) ---
+        c.gridy = 0;
+        c.insets = new Insets(6, 8, 2, 8); // Reduced padding
+        
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        
+        // --- Boss/Raid Name ---
+        JLabel bossName = new JLabel(item.boss_name);
+        bossName.setFont(FontManager.getRunescapeBoldFont());
+        bossName.setBorder(new EmptyBorder(0, 5, 0, 0)); // Padding
+        
+        // Color Logic: Raids = Gold, Bosses = Blue
+        isRaid = item.boss_name.contains("Chambers") || 
+                 item.boss_name.contains("Theatre") || 
+                 item.boss_name.contains("Tombs") || 
+                 item.boss_name.contains("Fractured");
+                         
+        if (isRaid) {
+            bossName.setForeground(GOLD);
+        } else {
+            bossName.setForeground(SOFT_BLUE); // Syncs with Host Boss button
+        }
+        
+        header.add(bossName, BorderLayout.CENTER);
+        
+        // Add Loot Icon to the RIGHT side instead of floating next to text
+        ItemManager im = parent.getPlugin().getItemManager();
+        SpriteManager sm = parent.getPlugin().getSpriteManager();
+        
+        int iconId = -1;
+        String type = item.loot_type != null ? item.loot_type.toLowerCase() : "";
+        String pref = item.host_loot_pref != null ? item.host_loot_pref.toLowerCase() : "";
+        
+        if (type.contains("split") || (type.isEmpty() && pref.contains("split"))) iconId = ItemID.COINS_995;
+        else if (type.contains("ffa") || (type.isEmpty() && pref.contains("ffa"))) iconId = 13307; // Blood Money
+        else iconId = ItemID.TOKKUL; // Mixed Preference
+        
+        // Right Side: Loot Icon + Members Count
+        JPanel rightHeader = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        rightHeader.setOpaque(false);
+        
+        if (iconId != -1 && im != null) {
+            JLabel lootLbl = new JLabel();
+            // Scale icons up slightly? Or keep default.
+            if (iconId == ItemID.COINS_995 || iconId == 13307 || iconId == ItemID.TOKKUL) {
+                lootLbl.setIcon(new ImageIcon(im.getImage(iconId, 10000, false)));
+            } else {
+                lootLbl.setIcon(new ImageIcon(im.getImage(iconId)));
+            }
+            if (iconId == ItemID.COINS_995) lootLbl.setToolTipText("Split");
+            else if (iconId == 13307) lootLbl.setToolTipText("FFA");
+            else lootLbl.setToolTipText("Mixed");
+            
+            rightHeader.add(lootLbl);
+        }
+        
+        boolean isFull = item.members_count >= item.max_members;
+        
+        JLabel countLbl = new JLabel("[" + item.members_count + "/" + item.max_members + "]");
+        countLbl.setFont(FontManager.getRunescapeSmallFont());
+        countLbl.setForeground(isFull ? Color.RED : Color.GREEN);
+        rightHeader.add(countLbl);
+        
+        header.add(rightHeader, BorderLayout.EAST);
+        add(header, c);
+        
+        // --- Row 2: Metadata (Host + Region + Waitlist Icon) ---
+        c.gridy++;
+        c.insets = new Insets(0, 8, 6, 8); // inner padding bottom
+        
+        JPanel metaRow = new JPanel(new BorderLayout());
+        metaRow.setOpaque(false);
+        
+        // Left: Host (Region)
+        String regionStr = item.region != null ? " (" + item.region + ")" : "";
+        JLabel hostLbl = new JLabel(item.host + regionStr);
+        hostLbl.setFont(FontManager.getRunescapeSmallFont());
+        hostLbl.setForeground(Color.LIGHT_GRAY);
+        
+        // Add waitlist icon next to host if applicable
+        JPanel leftMeta = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        leftMeta.setOpaque(false);
+        leftMeta.add(hostLbl);
+        
+        if (item.allow_waitlist && im != null) {
+            JLabel waitLbl = new JLabel();
+            waitLbl.setIcon(new ImageIcon(im.getImage(ItemID.BOOK_OF_THE_DEAD)));
+            waitLbl.setToolTipText("Waitlist Allowed");
+            leftMeta.add(waitLbl);
+        }
+        
+        metaRow.add(leftMeta, BorderLayout.WEST);
+        add(metaRow, c);
+        
+        // --- Interaction ---
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                hovered = true;
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                repaint();
+            }
+            @Override
+            public void mouseExited(MouseEvent e) {
+                hovered = false;
+                setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+                repaint();
+            }
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    parent.showDetails(item);
+                }
+            }
+            @Override
+            public void mousePressed(MouseEvent e) { checkPopup(e); }
+            @Override
+            public void mouseReleased(MouseEvent e) { checkPopup(e); }
+            
+            private void checkPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    JPopupMenu menu = new JPopupMenu();
+                    
+                    // Determine Role
+                    String localName = parent.getPlugin().getLocalPlayerName();
+                    boolean isHost = false;
+                    boolean isMember = false;
+                    
+                    if (localName != null) {
+                         String cleanLocal = localName.replace("\u00A0", " ");
+                         String authHost = parent.getPlugin().getAuthorizedHostRsn();
+                         
+                         // Check Name Match OR Session Match OR Authorized Identity Match
+                         if ((item.host != null && item.host.replace("\u00A0", " ").equalsIgnoreCase(cleanLocal)) 
+                             || parent.getPlugin().isMyQueue(item.id)
+                             || (authHost != null && item.host != null && item.host.replace("\u00A0", " ").equalsIgnoreCase(authHost))) {
+                             isHost = true;
+                         }
+                         if (item.members != null) {
+                            for (QueueItem.Member m : item.members) {
+                                 if (m.rsn.equalsIgnoreCase(cleanLocal)) { isMember = true; break; }
+                            }
+                         }
+                    }
+                    
+                    // Build Menu
+                    JMenuItem details = new JMenuItem("View Details");
+                    details.addActionListener(ev -> parent.showDetails(item));
+                    menu.add(details);
+                    
+                    if (isHost) {
+                        menu.addSeparator();
+                        JMenuItem start = new JMenuItem("Start Queue");
+                        start.setForeground(new Color(0, 100, 0));
+                        start.addActionListener(ev -> parent.getPlugin().startQueue(item.id));
+                        menu.add(start);
+                        
+                        JMenuItem close = new JMenuItem("Close Queue");
+                        close.setForeground(Color.RED);
+                        close.addActionListener(ev -> {
+                             int result = JOptionPane.showConfirmDialog(parent, "Close this queue permanently?", "Confirm Close", JOptionPane.YES_NO_OPTION);
+                             if (result == JOptionPane.YES_OPTION) parent.getPlugin().deleteQueue(item.id);
+                        });
+                        menu.add(close);
+                    } else if (isMember) {
+                        menu.addSeparator();
+                        JMenuItem leave = new JMenuItem("Leave Queue");
+                        leave.setForeground(Color.RED);
+                        leave.addActionListener(ev -> {
+                             int result = JOptionPane.showConfirmDialog(parent, "Leave queue?", "Confirm", JOptionPane.YES_NO_OPTION);
+                             if (result == JOptionPane.YES_OPTION) parent.getPlugin().leaveQueue(item.id);
+                        });
+                        menu.add(leave);
+                    } else {
+                        menu.addSeparator();
+                        JMenuItem join = new JMenuItem("Join Queue");
+                        join.setForeground(new Color(0, 100, 0));
+                        join.addActionListener(ev -> {
+                             String pref = "any";
+                             String hostType = item.loot_type != null ? item.loot_type.toLowerCase() : "";
+                             
+                             if (hostType.isEmpty() || hostType.contains("both") || hostType.contains("mixed")) {
+                                 String[] options = {"Split", "FFA"};
+                                 int choice = JOptionPane.showOptionDialog(parent, "Select your Loot Preference:", "Join Queue", 
+                                     JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+                                     
+                                 if (choice == -1) return;
+                                 pref = choice == 0 ? "split" : "ffa";
+                             } else {
+                                 pref = hostType;
+                                 int result = JOptionPane.showConfirmDialog(parent, "Join queue?", "Confirm", JOptionPane.YES_NO_OPTION);
+                                 if (result != JOptionPane.YES_OPTION) return;
+                             }
+                             
+                             parent.getPlugin().joinQueue(item.id, pref);
+                        });
+                        menu.add(join);
+                    }
+                    
+                    menu.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+        });
+    }
+    
+    // Custom Painting for Rounded Corners
+    private boolean hovered = false;
+    
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2 = (Graphics2D) g.create();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int w = getWidth();
+        int h = getHeight();
+        
+        // Check if member for highlighting border
+        boolean isMember = false;
+        String localName = parent.getPlugin().getLocalPlayerName();
+        if (localName != null && item.members != null) {
+            String cleanLocal = localName.replace("\u00A0", " ");
+            for (QueueItem.Member m : item.members) {
+                 if (m.rsn.equalsIgnoreCase(cleanLocal)) { isMember = true; break; }
+            }
+        }
+        
+        // Draw Background
+        Color bg = hovered ? new Color(60, 60, 60) : new Color(45, 45, 45); // Lighter gray on hover
+        g2.setColor(bg);
+        g2.fillRoundRect(2, 2, w-4, h-4, 10, 10);
+        
+        // Draw Border
+        Color baseBorder = isRaid ? GOLD : SOFT_BLUE;
+        Color border = isMember ? baseBorder : baseBorder.darker().darker();
+        g2.setColor(border);
+        g2.setStroke(new BasicStroke(isMember ? 2f : 1f));
+        g2.drawRoundRect(2, 2, w-5, h-5, 10, 10);
+        
+        g2.dispose();
+        // super.paintComponent(g); // Don't call super, we handle background
+    }
+}
