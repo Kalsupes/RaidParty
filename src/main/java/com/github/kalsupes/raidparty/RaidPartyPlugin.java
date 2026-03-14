@@ -511,17 +511,21 @@ public class RaidPartyPlugin extends Plugin {
         if (!isLocal && event.getUsername() != null && !event.getUsername().isEmpty()) {
             // Ready state change
             if (existing == null || existing.getReadyState() != event.getReadyState()) {
-                if (event.getReadyState() == 1) {
-                    postPartyChat(event.getUsername() + " is <col=00ff00>Ready</col>");
-                } else if (event.getReadyState() == 2) {
-                    postPartyChat(event.getUsername() + " is <col=ff0000>Not Ready</col>");
+                if (config.chatReadyToggle()) {
+                    if (event.getReadyState() == 1) {
+                        postPartyChat(event.getUsername() + " is <col=00ff00>Ready</col>");
+                    } else if (event.getReadyState() == 2) {
+                        postPartyChat(event.getUsername() + " is <col=ff0000>Not Ready</col>");
+                    }
                 }
             }
             // Loot rule change
             if (existing == null || existing.getLootRule() != event.getLootRule()) {
                 if (event.getLootRule() != null && event.getLootRule() != LootRule.UNSPECIFIED) {
-                    String color = event.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
-                    postPartyChat(event.getUsername() + " set loot to <col=" + color + ">" + event.getLootRule() + "</col>");
+                    if (config.chatLootToggle()) {
+                        String color = event.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
+                        postPartyChat(event.getUsername() + " set loot to <col=" + color + ">" + event.getLootRule() + "</col>");
+                    }
                 }
             }
         }
@@ -1005,11 +1009,13 @@ public class RaidPartyPlugin extends Plugin {
         cachedLocalSync.setReadyState(state);
 
         if (state > 0) {
-            String name = getLocalPlayerName();
-            if (name == null) name = "Unknown";
-            String statusText = state == 1 ? "is <col=00ff00>Ready</col>"
-                    : "is <col=ff0000>Not Ready</col>";
-            postPartyChat(name + " " + statusText);
+            if (config.chatReadyToggle()) {
+                String name = getLocalPlayerName();
+                if (name == null) name = "Unknown";
+                String statusText = state == 1 ? "is <col=00ff00>Ready</col>"
+                        : "is <col=ff0000>Not Ready</col>";
+                postPartyChat(name + " " + statusText);
+            }
         }
 
         if (partyService.isInParty()) {
@@ -1024,10 +1030,12 @@ public class RaidPartyPlugin extends Plugin {
 
         // Broadcast to party chat locally
         if (rule != LootRule.UNSPECIFIED) {
-            String name = getLocalPlayerName();
-            if (name == null) name = "Unknown";
-            String color = rule == LootRule.FFA ? "af00af" : "00bfff";
-            postPartyChat(name + " set loot to <col=" + color + ">" + rule + "</col>");
+            if (config.chatLootToggle()) {
+                String name = getLocalPlayerName();
+                if (name == null) name = "Unknown";
+                String color = rule == LootRule.FFA ? "af00af" : "00bfff";
+                postPartyChat(name + " set loot to <col=" + color + ">" + rule + "</col>");
+            }
         }
 
         if (partyService.isInParty()) {

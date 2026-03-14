@@ -99,6 +99,16 @@ public interface RaidPartyConfig extends Config {
         return true;
     }
 
+    @ConfigItem(keyName = "chatReadyToggle", name = "Ready State Chat Alerts", description = "Show chat messages when party members change their Ready state", position = 2, section = generalSection)
+    default boolean chatReadyToggle() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "chatLootToggle", name = "Loot Rule Chat Alerts", description = "Show chat messages when party members change their Loot rule", position = 3, section = generalSection)
+    default boolean chatLootToggle() {
+        return true;
+    }
+
     // ================= TEAM UI =================
     @ConfigItem(keyName = "enableLowHpGlow", name = "Enable Low HP Glow", description = "Toggle the pulsing 3D outline when a teammate drops below the Low HP threshold", position = 0, section = teamSection)
     default boolean enableLowHpGlow() {

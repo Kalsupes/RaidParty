@@ -30,6 +30,7 @@ The plugin is aimed at coordinated groups running content such as Tombs of Amasc
 - Inspection tabs for **inventory**, **equipment**, **prayers**, and **skills**
 - Synced combat-relevant information including health, prayer, run energy, world, and spellbook state
 - Optional virtual level display for shared stat visibility
+- Low-HP teammate glow effects for quick visual communication
 
 ### Ready Checks / Loot Preferences
 - One-click **Ready / Not Ready** state sharing
@@ -43,12 +44,6 @@ The plugin is aimed at coordinated groups running content such as Tombs of Amasc
 - Optional floating 3D text/icons for higher visibility in cluttered encounters
 
 ![RaidParty ping system](images/pings.gif)
-
-### Raid Overlays
-- Tombs of Amascut point tracking
-- Chambers of Xeric point tracking
-- On-screen overlay for party points and estimated unique chance information
-- Low-HP teammate glow effects for quick visual communication
 
 ### Built for active development
 - Gradle-based project structure
@@ -97,7 +92,6 @@ RuneLite's base party tooling is useful, but raid groups often need more immedia
 - what loot rules are being used
 - what gear and supplies teammates have available
 - who is in trouble
-- what the current raid performance looks like
 - where attention needs to shift right now
 
 The goal is not just more data. The goal is faster decisions with less friction.
@@ -112,6 +106,7 @@ RaidParty includes configurable options for:
 - 3D ping icon rendering
 - low-HP and critical-HP teammate glow effects
 - loot preference broadcasting
+- ready/not ready broadcasting
 - virtual level display
 
 This allows teams to keep the core workflow consistent while tailoring the visual and audio feedback to personal preference.
@@ -125,10 +120,6 @@ RaidParty incorporates or adapts work from the following projects:
 - **TheStonedTurtle – Hub Party Panel**  
   Party panel UI and player sync concepts adapted under BSD-2-Clause.  
   See `LICENSE-THESTONEDTURTLE`.
-
-- **LlemonDuck – Tombs of Amascut Plugin**  
-  ToA point tracking and unique chance math adapted under BSD-2-Clause.  
-  See `LICENSE-LLEMONDUCK`.
 
 Please retain attribution and the included license files where applicable.
 
@@ -151,4 +142,4 @@ Questions, feedback, and collaboration are welcome.
 
 ## License
 
-This repository contains original work as well as components derived from third-party BSD-licensed projects. Review the included license files before redistribution or reuse.
+This repository contains original work as well as components derived from third-party (Hub Party Panel) BSD-licensed projects. Review the included license files before redistribution or reuse.
