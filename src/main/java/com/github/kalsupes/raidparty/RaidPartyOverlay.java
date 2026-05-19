@@ -175,6 +175,9 @@ public class RaidPartyOverlay extends Overlay {
                 } else if (ping.getPingType() == 1) {
                     baseColor = config.cautionPingColor();
                     floatingText = "!";
+                } else if (ping.getPingType() == 3) {
+                    baseColor = config.resourcePingColor();
+                    floatingText = "+";
                 } else {
                     baseColor = config.safePingColor();
                     floatingText = "v";

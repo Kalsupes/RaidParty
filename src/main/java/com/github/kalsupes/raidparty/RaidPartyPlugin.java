@@ -215,6 +215,8 @@ public class RaidPartyPlugin extends Plugin {
         keyManager.unregisterKeyListener(safePingHotkey);
         keyManager.unregisterKeyListener(cautionPingHotkey);
         keyManager.unregisterKeyListener(dangerPingHotkey);
+        keyManager.unregisterKeyListener(resourcePingHotkey);
+        keyManager.unregisterKeyListener(objectPingHotkey);
         wsClient.unregisterMessage(RaidPartyPlayerSync.class);
         wsClient.unregisterMessage(RaidPartyPartyMessage.class);
         wsClient.unregisterMessage(BossPingMessage.class);
@@ -272,6 +274,7 @@ public class RaidPartyPlugin extends Plugin {
         lastSentEqpHash = -1;
         lastSentSkillsHash = -1;
         lastSentRunePouchHash = -1;
+        lastSentXpsHash = -1;
         needsPartySync = true;
     }
 
@@ -294,21 +297,35 @@ public class RaidPartyPlugin extends Plugin {
     private final HotkeyListener safePingHotkey = new HotkeyListener(() -> config.safePingHotkey()) {
         @Override
         public void hotkeyPressed() {
-            executePing(0);
+            executePing(0, false);
         }
     };
 
     private final HotkeyListener cautionPingHotkey = new HotkeyListener(() -> config.cautionPingHotkey()) {
         @Override
         public void hotkeyPressed() {
-            executePing(1);
+            executePing(1, false);
         }
     };
 
     private final HotkeyListener dangerPingHotkey = new HotkeyListener(() -> config.dangerPingHotkey()) {
         @Override
         public void hotkeyPressed() {
-            executePing(2);
+            executePing(2, false);
+        }
+    };
+
+    private final HotkeyListener resourcePingHotkey = new HotkeyListener(() -> config.resourcePingHotkey()) {
+        @Override
+        public void hotkeyPressed() {
+            executePing(3, false);
+        }
+    };
+
+    private final HotkeyListener objectPingHotkey = new HotkeyListener(() -> config.objectPingHotkey()) {
+        @Override
+        public void hotkeyPressed() {
+            executePing(0, true);
         }
     };
 
@@ -333,6 +350,8 @@ public class RaidPartyPlugin extends Plugin {
         keyManager.registerKeyListener(safePingHotkey);
         keyManager.registerKeyListener(cautionPingHotkey);
         keyManager.registerKeyListener(dangerPingHotkey);
+        keyManager.registerKeyListener(resourcePingHotkey);
+        keyManager.registerKeyListener(objectPingHotkey);
     }
 
     private void sendHotkeyMessage(String message) {
@@ -360,7 +379,7 @@ public class RaidPartyPlugin extends Plugin {
         });
     }
 
-    private void executePing(int pingType) {
+    private void executePing(int pingType, boolean forceEntity) {
         clientThread.invokeLater(() -> {
             net.runelite.api.Tile targetTile = client.getSelectedSceneTile();
             if (targetTile == null)
@@ -373,56 +392,62 @@ public class RaidPartyPlugin extends Plugin {
             int tType = 0;
             int tIndex = -1;
 
-            MenuEntry[] entries = client.getMenuEntries();
-            for (int i = entries.length - 1; i >= 0; i--) {
-                MenuEntry entry = entries[i];
-                if (entry.getType() == MenuAction.NPC_FIRST_OPTION || entry.getType() == MenuAction.NPC_SECOND_OPTION ||
-                        entry.getType() == MenuAction.NPC_THIRD_OPTION
-                        || entry.getType() == MenuAction.NPC_FOURTH_OPTION ||
-                        entry.getType() == MenuAction.NPC_FIFTH_OPTION || entry.getType() == MenuAction.EXAMINE_NPC) {
-                    tType = 1;
-                    tIndex = entry.getIdentifier();
-                    NPC targetNpc = null;
-                    for (NPC n : client.getNpcs()) {
-                        if (n.getIndex() == tIndex) {
-                            targetNpc = n;
-                            break;
+            if (forceEntity) {
+                MenuEntry[] entries = client.getMenuEntries();
+                for (int i = entries.length - 1; i >= 0; i--) {
+                    MenuEntry entry = entries[i];
+                    if (entry.getType() == MenuAction.NPC_FIRST_OPTION || entry.getType() == MenuAction.NPC_SECOND_OPTION ||
+                            entry.getType() == MenuAction.NPC_THIRD_OPTION
+                            || entry.getType() == MenuAction.NPC_FOURTH_OPTION ||
+                            entry.getType() == MenuAction.NPC_FIFTH_OPTION || entry.getType() == MenuAction.EXAMINE_NPC) {
+                        tType = 1;
+                        tIndex = entry.getIdentifier();
+                        NPC targetNpc = null;
+                        for (NPC n : client.getNpcs()) {
+                            if (n.getIndex() == tIndex) {
+                                targetNpc = n;
+                                break;
+                            }
                         }
+                        if (targetNpc != null)
+                            wp = targetNpc.getWorldLocation();
+                        break;
+                    } else if (entry.getType() == MenuAction.GAME_OBJECT_FIRST_OPTION
+                            || entry.getType() == MenuAction.GAME_OBJECT_SECOND_OPTION ||
+                            entry.getType() == MenuAction.GAME_OBJECT_THIRD_OPTION
+                            || entry.getType() == MenuAction.GAME_OBJECT_FOURTH_OPTION ||
+                            entry.getType() == MenuAction.GAME_OBJECT_FIFTH_OPTION
+                            || entry.getType() == MenuAction.EXAMINE_OBJECT) {
+                        tType = 2;
+                        tIndex = entry.getIdentifier(); // Object ID
+                        // Resolve the object's actual tile from scene coordinates
+                        int sceneX = entry.getParam0();
+                        int sceneY = entry.getParam1();
+                        if (sceneX >= 0 && sceneY >= 0) {
+                            wp = WorldPoint.fromScene(client, sceneX, sceneY, client.getPlane());
+                        }
+                        break;
+                    } else if (entry.getType() == MenuAction.GROUND_ITEM_FIRST_OPTION
+                            || entry.getType() == MenuAction.GROUND_ITEM_SECOND_OPTION ||
+                            entry.getType() == MenuAction.GROUND_ITEM_THIRD_OPTION
+                            || entry.getType() == MenuAction.GROUND_ITEM_FOURTH_OPTION ||
+                            entry.getType() == MenuAction.GROUND_ITEM_FIFTH_OPTION
+                            || entry.getType() == MenuAction.EXAMINE_ITEM_GROUND) {
+                        tType = 3;
+                        tIndex = entry.getIdentifier(); // Item ID
+                        // Resolve the ground item's actual tile from scene coordinates
+                        int gSceneX = entry.getParam0();
+                        int gSceneY = entry.getParam1();
+                        if (gSceneX >= 0 && gSceneY >= 0) {
+                            wp = WorldPoint.fromScene(client, gSceneX, gSceneY, client.getPlane());
+                        }
+                        break;
                     }
-                    if (targetNpc != null)
-                        wp = targetNpc.getWorldLocation();
-                    break;
-                } else if (entry.getType() == MenuAction.GAME_OBJECT_FIRST_OPTION
-                        || entry.getType() == MenuAction.GAME_OBJECT_SECOND_OPTION ||
-                        entry.getType() == MenuAction.GAME_OBJECT_THIRD_OPTION
-                        || entry.getType() == MenuAction.GAME_OBJECT_FOURTH_OPTION ||
-                        entry.getType() == MenuAction.GAME_OBJECT_FIFTH_OPTION
-                        || entry.getType() == MenuAction.EXAMINE_OBJECT) {
-                    tType = 2;
-                    tIndex = entry.getIdentifier(); // Object ID
-                    // Resolve the object's actual tile from scene coordinates
-                    int sceneX = entry.getParam0();
-                    int sceneY = entry.getParam1();
-                    if (sceneX >= 0 && sceneY >= 0) {
-                        wp = WorldPoint.fromScene(client, sceneX, sceneY, client.getPlane());
-                    }
-                    break;
-                } else if (entry.getType() == MenuAction.GROUND_ITEM_FIRST_OPTION
-                        || entry.getType() == MenuAction.GROUND_ITEM_SECOND_OPTION ||
-                        entry.getType() == MenuAction.GROUND_ITEM_THIRD_OPTION
-                        || entry.getType() == MenuAction.GROUND_ITEM_FOURTH_OPTION ||
-                        entry.getType() == MenuAction.GROUND_ITEM_FIFTH_OPTION
-                        || entry.getType() == MenuAction.EXAMINE_ITEM_GROUND) {
-                    tType = 3;
-                    tIndex = entry.getIdentifier(); // Item ID
-                    // Resolve the ground item's actual tile from scene coordinates
-                    int gSceneX = entry.getParam0();
-                    int gSceneY = entry.getParam1();
-                    if (gSceneX >= 0 && gSceneY >= 0) {
-                        wp = WorldPoint.fromScene(client, gSceneX, gSceneY, client.getPlane());
-                    }
-                    break;
                 }
+                
+                // If it's an object ping but we found no object, do nothing (or fallback to tile?)
+                // Let's fallback to nothing to prevent accidental safe pings.
+                if (tType == 0) return;
             }
 
             activePings.add(new BossPing(wp, pingType, tType, tIndex, System.currentTimeMillis() + 4000));
@@ -451,6 +476,9 @@ public class RaidPartyPlugin extends Plugin {
             case 2:
                 soundId = config.dangerPingSound();
                 break; // Danger
+            case 3:
+                soundId = config.resourcePingSound();
+                break; // Resource
         }
 
         if (soundId != -1) {
@@ -513,9 +541,9 @@ public class RaidPartyPlugin extends Plugin {
             if (existing == null || existing.getReadyState() != event.getReadyState()) {
                 if (config.chatReadyToggle()) {
                     if (event.getReadyState() == 1) {
-                        postPartyChat(event.getUsername() + " is <col=00ff00>Ready</col>");
+                        postPartyChat(event.getUsername() + " is now <col=00ff00>Ready</col>");
                     } else if (event.getReadyState() == 2) {
-                        postPartyChat(event.getUsername() + " is <col=ff0000>Not Ready</col>");
+                        postPartyChat(event.getUsername() + " is now <col=ff0000>Not Ready</col>");
                     }
                 }
             }
@@ -524,7 +552,7 @@ public class RaidPartyPlugin extends Plugin {
                 if (event.getLootRule() != null && event.getLootRule() != LootRule.UNSPECIFIED) {
                     if (config.chatLootToggle()) {
                         String color = event.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
-                        postPartyChat(event.getUsername() + " set loot to <col=" + color + ">" + event.getLootRule() + "</col>");
+                        postPartyChat(event.getUsername() + " Loot Confirmed: <col=" + color + ">" + event.getLootRule() + "</col>");
                     }
                 }
             }
@@ -540,7 +568,8 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     private void postPartyChat(String message) {
-        final String chatMsg = "<col=00ffff>[RaidParty]</col> " + message;
+        final String timeStr = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        final String chatMsg = "<col=00ffff>[RaidParty]</col> <col=ffff00>[" + timeStr + "]</col> <col=ffffff>" + message + "</col>";
         clientThread.invokeLater(
                 () -> client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", chatMsg, ""));
     }
@@ -620,6 +649,7 @@ public class RaidPartyPlugin extends Plugin {
         sync.setUsername(name != null ? name : "");
         sync.setActivePrayers(gatherActivePrayers());
         sync.setSkillLevels(gatherSkillLevels());
+        sync.setSkillXps(gatherSkillXps());
         sync.setLootRule(localLootRule);
 
         // New fields: stamina, poison, disease, total level
@@ -730,6 +760,7 @@ public class RaidPartyPlugin extends Plugin {
     private int lastSentEqpHash;
     private int lastSentSkillsHash;
     private int lastSentRunePouchHash;
+    private int lastSentXpsHash;
 
     private void sendPartySyncMessage() {
         RaidPartyPlayerSync local = cachedLocalSync;
@@ -782,6 +813,12 @@ public class RaidPartyPlugin extends Plugin {
             lastSentSkillsHash = skillsHash;
         }
 
+        int xpsHash = Arrays.hashCode(local.getSkillXps());
+        if (xpsHash != lastSentXpsHash) {
+            syncCopy.setSkillXps(local.getSkillXps());
+            lastSentXpsHash = xpsHash;
+        }
+
         int pouchHash = Arrays.hashCode(local.getRunePouchIds()) * 31 + Arrays.hashCode(local.getRunePouchQtys());
         if (pouchHash != lastSentRunePouchHash) {
             syncCopy.setRunePouchIds(local.getRunePouchIds());
@@ -813,6 +850,9 @@ public class RaidPartyPlugin extends Plugin {
         if (newSync.getSkillLevels() == null) {
             newSync.setSkillLevels(oldSync.getSkillLevels());
         }
+        if (newSync.getSkillXps() == null) {
+            newSync.setSkillXps(oldSync.getSkillXps());
+        }
         if (newSync.getRunePouchIds() == null) {
             newSync.setRunePouchIds(oldSync.getRunePouchIds());
             newSync.setRunePouchQtys(oldSync.getRunePouchQtys());
@@ -829,6 +869,16 @@ public class RaidPartyPlugin extends Plugin {
             } catch (Exception ignored) {
             }
         }
+
+        // Deadeye and Mystic Vigour use the same slot/varbit as Eagle Eye / Mystic Might in OSRS.
+        // We must manually strip out the lower-tier prayers if the higher-tier ones are active.
+        if ((packed & (1 << net.runelite.api.Prayer.DEADEYE.ordinal())) != 0) {
+            packed &= ~(1 << net.runelite.api.Prayer.EAGLE_EYE.ordinal());
+        }
+        if ((packed & (1 << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0) {
+            packed &= ~(1 << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal());
+        }
+
         return packed;
     }
 
@@ -847,14 +897,43 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     private int gatherUnlockedPrayers() {
-        // All non-quest-locked prayers are unlocked by default
-        // Quest-locked prayers (Rigour, Augury, Preserve, etc.) check varbits
         int packed = 0;
         for (net.runelite.api.Prayer p : net.runelite.api.Prayer.values()) {
             try {
-                // For simplicity, we treat all prayers the player has access to as unlocked
-                // The client prayer interface itself shows the lock status
-                packed |= (1 << p.ordinal());
+                boolean unlocked = true;
+                switch (p) {
+                    case PIETY:
+                    case CHIVALRY:
+                        unlocked = client.getVarbitValue(3909) == 8; // Knight Waves completion varbit
+                        break;
+                    case RIGOUR:
+                        unlocked = client.getVarbitValue(5451) == 1; // Rigour unlock varbit
+                        break;
+                    case AUGURY:
+                        unlocked = client.getVarbitValue(5452) == 1; // Augury unlock varbit
+                        break;
+                    case PRESERVE:
+                        unlocked = client.getVarbitValue(5453) == 1; // Preserve unlock varbit
+                        break;
+                    case DEADEYE:
+                        unlocked = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) == 1 && client.getVarbitValue(Varbits.IN_LMS) == 0;
+                        break;
+                    case MYSTIC_VIGOUR:
+                        unlocked = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) == 1 && client.getVarbitValue(Varbits.IN_LMS) == 0;
+                        break;
+                    case EAGLE_EYE:
+                        unlocked = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) == 0 || client.getVarbitValue(Varbits.IN_LMS) == 1;
+                        break;
+                    case MYSTIC_MIGHT:
+                        unlocked = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) == 0 || client.getVarbitValue(Varbits.IN_LMS) == 1;
+                        break;
+                    default:
+                        unlocked = true;
+                        break;
+                }
+                if (unlocked) {
+                    packed |= (1 << p.ordinal());
+                }
             } catch (Exception ignored) {
             }
         }
@@ -975,11 +1054,113 @@ public class RaidPartyPlugin extends Plugin {
         return levels;
     }
 
+    private int[] gatherSkillXps() {
+        Skill[] skills = Skill.values();
+        int[] xps = new int[skills.length];
+        for (int i = 0; i < skills.length; i++) {
+            try {
+                xps[i] = client.getSkillExperience(skills[i]);
+            } catch (Exception ignored) {
+            }
+        }
+        return xps;
+    }
+
     // --- AUTO-LEAVE ON IDLE ---
     @Subscribe
     public void onGameStateChanged(GameStateChanged event) {
         if (event.getGameState() == GameState.LOGIN_SCREEN) {
             lastLogout = Instant.now();
+        }
+    }
+
+    @Subscribe
+    public void onChatMessage(net.runelite.api.events.ChatMessage event) {
+        if (!config.announceMegarares()) {
+            return;
+        }
+
+        if (event.getType() != net.runelite.api.ChatMessageType.GAMEMESSAGE &&
+            event.getType() != net.runelite.api.ChatMessageType.FRIENDSCHAT &&
+            event.getType() != net.runelite.api.ChatMessageType.CLAN_CHAT &&
+            event.getType() != net.runelite.api.ChatMessageType.CLAN_GUEST_CHAT) {
+            return;
+        }
+
+        String rawMessage = net.runelite.client.util.Text.removeTags(event.getMessage());
+        String message = rawMessage.toLowerCase();
+
+        // Check if it's a drop message
+        if (!message.contains("special loot:") && !message.contains("found some loot:") && !message.contains("received a drop:") && !message.contains("found some special loot:")) {
+            return;
+        }
+
+        java.util.Map<String, Integer> megarares = new HashMap<>();
+        megarares.put("twisted bow", 20997);
+        megarares.put("kodai insignia", 21043);
+        megarares.put("elder maul", 21003);
+        megarares.put("dragon hunter crossbow", 21012);
+        megarares.put("dinh's bulwark", 21015);
+        megarares.put("ancestral hat", 21018);
+        megarares.put("ancestral robe top", 21021);
+        megarares.put("ancestral robe bottom", 21024);
+        megarares.put("dragon claws", 13652);
+        megarares.put("twisted buckler", 21000);
+        megarares.put("scythe of vitur", 22486); // Uncharged
+        megarares.put("ghrazi rapier", 22324);
+        megarares.put("sanguinesti staff", 22323); // Uncharged
+        megarares.put("justiciar faceguard", 22326);
+        megarares.put("justiciar chestguard", 22327);
+        megarares.put("justiciar legguards", 22328);
+        megarares.put("avernic defender hilt", 22477);
+        megarares.put("tumeken's shadow", 27277); // Uncharged
+        megarares.put("elidinis' ward", 25985);
+        megarares.put("osmumten's fang", 26219);
+        megarares.put("lightbearer", 25975);
+        megarares.put("masori mask", 27226);
+        megarares.put("masori body", 27229);
+        megarares.put("masori chaps", 27232);
+
+        String matchedItem = null;
+        int matchedId = -1;
+        for (Map.Entry<String, Integer> entry : megarares.entrySet()) {
+            if (message.contains(entry.getKey())) {
+                matchedItem = entry.getKey();
+                matchedId = entry.getValue();
+                break;
+            }
+        }
+
+        if (matchedItem != null) {
+            String playerName = "Someone";
+            if (message.contains(" - ")) { // CoX style: "Special loot: Patrolman - Twisted bow"
+                String[] parts = rawMessage.split(" - ");
+                if (parts.length >= 2) {
+                    playerName = parts[0].replace("Special loot:", "").trim();
+                }
+            } else if (message.contains("received a drop:")) {
+                playerName = rawMessage.split("received a drop:")[0].trim();
+            } else if (message.contains("found some special loot:")) {
+                playerName = rawMessage.split("found some special loot:")[0].trim();
+            } else if (message.contains("found some loot:")) {
+                playerName = rawMessage.split("found some loot:")[0].trim();
+            }
+            
+            // Format name properly
+            playerName = playerName.substring(0, 1).toUpperCase() + playerName.substring(1);
+            
+            // Title case the item name
+            String finalItemName = "";
+            for (String word : matchedItem.split(" ")) {
+                if (!finalItemName.isEmpty()) finalItemName += " ";
+                finalItemName += word.substring(0, 1).toUpperCase() + word.substring(1);
+            }
+
+            int price = itemManager.getItemPrice(matchedId);
+            String priceStr = price > 0 ? java.text.NumberFormat.getInstance().format(price) : "Unknown";
+            
+            String dropMessage = playerName + " Received: <col=ef20ff>" + finalItemName + "</col> [<col=00ff00>" + priceStr + "</col> gp]";
+            postPartyChat(dropMessage);
         }
     }
 
@@ -1012,8 +1193,8 @@ public class RaidPartyPlugin extends Plugin {
             if (config.chatReadyToggle()) {
                 String name = getLocalPlayerName();
                 if (name == null) name = "Unknown";
-                String statusText = state == 1 ? "is <col=00ff00>Ready</col>"
-                        : "is <col=ff0000>Not Ready</col>";
+                String statusText = state == 1 ? "is now <col=00ff00>Ready</col>"
+                        : "is now <col=ff0000>Not Ready</col>";
                 postPartyChat(name + " " + statusText);
             }
         }
@@ -1034,7 +1215,7 @@ public class RaidPartyPlugin extends Plugin {
                 String name = getLocalPlayerName();
                 if (name == null) name = "Unknown";
                 String color = rule == LootRule.FFA ? "af00af" : "00bfff";
-                postPartyChat(name + " set loot to <col=" + color + ">" + rule + "</col>");
+                postPartyChat(name + " Loot Confirmed: <col=" + color + ">" + rule + "</col>");
             }
         }
 

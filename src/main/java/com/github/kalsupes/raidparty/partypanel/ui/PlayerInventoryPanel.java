@@ -63,7 +63,44 @@ public class PlayerInventoryPanel extends JPanel
 
 		for (final GameItem i : items)
 		{
-			final JLabel label = new JLabel();
+			final JLabel label = new JLabel() {
+				@Override
+				protected void paintComponent(java.awt.Graphics g) {
+					super.paintComponent(g);
+					java.awt.Graphics2D g2 = (java.awt.Graphics2D) g;
+					g2.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
+					if (i != null && isDefenseLoweringWeapon(i.getId())) {
+						g2.setColor(new Color(255, 215, 0, 180)); // Golden glow
+						g2.setStroke(new java.awt.BasicStroke(2f));
+						g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 4, 4);
+					}
+
+					if (i != null && i.getDisplayName() != null && i.getDisplayName().toLowerCase().contains("rune pouch") && runePouchContents != null) {
+
+						int count = 0;
+						for (GameItem rune : runePouchContents) {
+							if (rune == null || rune.getId() <= 0) continue;
+
+							net.runelite.client.util.AsyncBufferedImage runeImg = itemManager.getImage(rune.getId(), rune.getQty(), false);
+							if (runeImg != null) {
+								int x = (count % 2 == 0) ? 2 : 22;
+								int y = (count < 2) ? 2 : 20;
+
+								g2.drawImage(runeImg, x, y, 14, 14, null);
+
+								int maxRunes = 16000;
+								int height = Math.min(14, (int) ((rune.getQty() / (float) maxRunes) * 14));
+								g2.setColor(Color.GREEN);
+								g2.fillRect(x + 15, y + (14 - height), 2, height);
+
+								count++;
+							}
+						}
+					}
+				}
+			};
+
 			label.setMinimumSize(INVI_SLOT_SIZE);
 			label.setPreferredSize(INVI_SLOT_SIZE);
 			label.setVerticalAlignment(JLabel.CENTER);
@@ -72,9 +109,16 @@ public class PlayerInventoryPanel extends JPanel
 			if (i != null)
 			{
 				String tooltip;
-				if (ArrayUtils.contains(PartyPanelPlugin.RUNEPOUCH_ITEM_IDS, i.getId()))
+				if (i.getDisplayName() != null && i.getDisplayName().toLowerCase().contains("rune pouch"))
 				{
 					tooltip = getRunePouchHoverText(i, runePouchContents);
+					if (runePouchContents != null) {
+						for (GameItem rune : runePouchContents) {
+							if (rune != null && rune.getId() > 0) {
+								itemManager.getImage(rune.getId(), rune.getQty(), false).onLoaded(label::repaint);
+							}
+						}
+					}
 				}
 				else
 				{
@@ -105,18 +149,41 @@ public class PlayerInventoryPanel extends JPanel
 	{
 		final String contentNames = Arrays.stream(contents)
 			.filter(Objects::nonNull)
-			.map(GameItem::getDisplayName)
+			.map(item -> java.text.NumberFormat.getInstance().format(item.getQty()) + " x " + item.getDisplayName())
 			.collect(Collectors.joining("<br>"));
 
 		if (contentNames.isEmpty())
 		{
-			return runePouch.getDisplayName();
+			return runePouch.getDisplayName() + " (Empty)";
 		}
 
 		return "<html>"
 			+ runePouch.getDisplayName()
-			+ "<br><br>"
+			+ "<br>---<br>"
 			+ contentNames
 			+ "</html>";
+	}
+
+	private boolean isDefenseLoweringWeapon(int itemId) {
+		switch (itemId) {
+			case 13576: // Dragon Warhammer
+			case 20785: // Dragon Warhammer (cr)
+			case 11804: // Bandos Godsword
+			case 20370: // Bandos Godsword (or)
+			case 21003: // Elder Maul
+			case 21205: // Elder Maul (or)
+			case 8872:  // Bone dagger
+			case 8874:  // Bone dagger (p)
+			case 8876:  // Bone dagger (p+)
+			case 8878:  // Bone dagger (p++)
+			case 27665: // Accursed sceptre
+			case 27662: // Accursed sceptre (a)
+			case 19675: // Arclight
+			case 29553: // Emberlight
+			case 6746:  // Darklight
+				return true;
+			default:
+				return false;
+		}
 	}
 }

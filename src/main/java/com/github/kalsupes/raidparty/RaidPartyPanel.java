@@ -437,6 +437,17 @@ public class RaidPartyPanel extends PluginPanel {
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         btn.addActionListener(e -> {
+            if (rule == LootRule.FFA) {
+                int res = JOptionPane.showOptionDialog(this,
+                    "FFA = Free For All\n\nThis means any loot obtained by you is not susceptible to be split between your teammates.",
+                    "Confirm Loot Rule", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"Confirm", "Decline"}, "Confirm");
+                if (res != JOptionPane.YES_OPTION) return;
+            } else if (rule == LootRule.SPLIT) {
+                int res = JOptionPane.showOptionDialog(this,
+                    "SPLIT\n\nThis means that any loot obtained by you is to be split with your teammates.",
+                    "Confirm Loot Rule", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, new String[]{"Confirm", "Decline"}, "Confirm");
+                if (res != JOptionPane.YES_OPTION) return;
+            }
             plugin.setLootRule(rule);
             parentRow.repaint();
         });

@@ -144,6 +144,16 @@ public class RaidPartyPlayerCard extends JPanel {
         }
         p.setInventory(inv);
 
+        // Rune Pouch
+        GameItem[] pouch = new GameItem[4];
+        if (sync.getRunePouchIds() != null) {
+            for (int i = 0; i < sync.getRunePouchIds().length && i < 4; i++) {
+                if (sync.getRunePouchIds()[i] > 0)
+                    pouch[i] = new GameItem(sync.getRunePouchIds()[i], sync.getRunePouchQtys()[i], itemManager);
+            }
+        }
+        p.setRunesInPouch(pouch);
+
         // Equipment
         GameItem[] eqp = new GameItem[14];
         if (sync.getEqpIds() != null) {
@@ -163,6 +173,9 @@ public class RaidPartyPlayerCard extends JPanel {
                     s.getBaseLevels().put(skill, sync.getSkillLevels()[idx + 1]);
                     s.getBoostedLevels().put(skill, sync.getSkillLevels()[idx]);
                 }
+                if (sync.getSkillXps() != null && skill.ordinal() < sync.getSkillXps().length) {
+                    s.getExperiences().put(skill, sync.getSkillXps()[skill.ordinal()]);
+                }
             }
         }
         s.setRunEnergy(sync.getRun());
@@ -177,6 +190,7 @@ public class RaidPartyPlayerCard extends JPanel {
                 int ordIdx = 1 << pr.ordinal();
                 pd.setAvailable((sync.getAvailablePrayers() & ordIdx) != 0);
                 pd.setEnabled((sync.getActivePrayers() & ordIdx) != 0);
+                pd.setUnlocked((sync.getUnlockedPrayers() & ordIdx) != 0);
             }
         }
         p.setPrayers(prayers);

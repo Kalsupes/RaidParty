@@ -36,6 +36,7 @@ public class Stats
 {
 	private final Map<Skill, Integer> baseLevels = new HashMap<>();
 	private final Map<Skill, Integer> boostedLevels = new HashMap<>();
+	private final Map<Skill, Integer> experiences = new HashMap<>();
 	private int specialPercent;
 	private int runEnergy;
 	private int combatLevel;
@@ -47,6 +48,7 @@ public class Stats
 		{
 			baseLevels.put(s, 1);
 			boostedLevels.put(s, 1);
+			experiences.put(s, 0);
 		}
 
 		baseLevels.put(Skill.HITPOINTS, 10);
@@ -98,6 +100,7 @@ public class Stats
 
 	public Map<Skill, Integer> getBaseLevels() { return baseLevels; }
 	public Map<Skill, Integer> getBoostedLevels() { return boostedLevels; }
+	public Map<Skill, Integer> getExperiences() { return experiences; }
 
 	public int getSpecialPercent() { return specialPercent; }
 	public void setSpecialPercent(int specialPercent) { this.specialPercent = specialPercent; }

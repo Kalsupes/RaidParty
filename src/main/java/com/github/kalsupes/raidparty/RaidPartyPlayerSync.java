@@ -42,6 +42,9 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     // Skill levels: [boosted, real] for each Skill ordinal
     // Index = Skill.ordinal() * 2 (boosted), Skill.ordinal() * 2 + 1 (real)
     private int[] skillLevels;
+    
+    // Skill experiences for each Skill ordinal
+    private int[] skillXps;
 
 
 

@@ -15,6 +15,12 @@ public interface RaidPartyConfig extends Config {
     @ConfigSection(name = "Team UI", description = "Configure 3D team tracking and visual warnings", position = 3, closedByDefault = false)
     String teamSection = "teamSection";
 
+    // ================= GENERAL =================
+    @ConfigItem(keyName = "announceMegarares", name = "Mega/rare Chat Alerts", description = "Broadcast party-wide megarare drops to the chatbox", position = 4, section = generalSection)
+    default boolean announceMegarares() {
+        return true;
+    }
+
     // ================= PING SYSTEM =================
     // --- Safe ---
     @ConfigItem(keyName = "safePingHotkey", name = "Safe Ping Hotkey", description = "Hotkey to drop a Safe (Green) Ping", position = 1, section = pingSection)
@@ -64,29 +70,50 @@ public interface RaidPartyConfig extends Config {
         return 2268;
     }
 
+    // --- Resource ---
+    @ConfigItem(keyName = "resourcePingHotkey", name = "Resource Ping Hotkey", description = "Hotkey to drop a Resource (Blue) Ping", position = 10, section = pingSection)
+    default Keybind resourcePingHotkey() {
+        return Keybind.NOT_SET;
+    }
+
+    @ConfigItem(keyName = "resourcePingColor", name = "Resource Ping Color", description = "Color of the Resource Ping ground marker", position = 11, section = pingSection)
+    default java.awt.Color resourcePingColor() {
+        return java.awt.Color.decode("#0000FF");
+    }
+
+    @ConfigItem(keyName = "resourcePingSound", name = "Resource Ping Sound ID", description = "Sound Effect ID for Resource pings (Default: 2267)", position = 12, section = pingSection)
+    default int resourcePingSound() {
+        return 2267; // Assuming 2267 is a safe default, can be changed by user
+    }
+
     // --- Entity/Object/Item ---
-    @ConfigItem(keyName = "entityPingColor", name = "Entity Ping Color", description = "Color of the NPC highlight", position = 10, section = pingSection)
+    @ConfigItem(keyName = "objectPingHotkey", name = "Object/Entity Hotkey", description = "Hotkey to ping Objects, NPCs, and Items", position = 13, section = pingSection)
+    default Keybind objectPingHotkey() {
+        return Keybind.NOT_SET;
+    }
+
+    @ConfigItem(keyName = "entityPingColor", name = "Entity Ping Color", description = "Color of the NPC highlight", position = 14, section = pingSection)
     default java.awt.Color entityPingColor() {
         return java.awt.Color.decode("#00FFFF");
     }
 
-    @ConfigItem(keyName = "objectPingColor", name = "Object Ping Color", description = "Color of Game Object Pings", position = 11, section = pingSection)
+    @ConfigItem(keyName = "objectPingColor", name = "Object Ping Color", description = "Color of Game Object Pings", position = 15, section = pingSection)
     default java.awt.Color objectPingColor() {
         return java.awt.Color.decode("#FFFFFF");
     }
 
-    @ConfigItem(keyName = "itemPingColor", name = "Ground Item Ping Color", description = "Color of Ground Item Pings", position = 12, section = pingSection)
+    @ConfigItem(keyName = "itemPingColor", name = "Ground Item Ping Color", description = "Color of Ground Item Pings", position = 16, section = pingSection)
     default java.awt.Color itemPingColor() {
         return java.awt.Color.decode("#FFFFFF");
     }
 
     // --- Toggles ---
-    @ConfigItem(keyName = "drawPingIcons", name = "Draw 3D Icons", description = "Toggle the hovering 3D Icons above ping markers", position = 13, section = pingSection)
+    @ConfigItem(keyName = "drawPingIcons", name = "Draw 3D Icons", description = "Toggle the hovering 3D Icons above ping markers", position = 17, section = pingSection)
     default boolean drawPingIcons() {
         return true;
     }
 
-    @ConfigItem(keyName = "playPingSounds", name = "Play Audio Pings", description = "Toggle audio cues when pings are dropped", position = 14, section = pingSection)
+    @ConfigItem(keyName = "playPingSounds", name = "Play Audio Pings", description = "Toggle audio cues when pings are dropped", position = 18, section = pingSection)
     default boolean playPingSounds() {
         return true;
     }

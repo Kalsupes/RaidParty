@@ -159,16 +159,24 @@ public class PlayerSkillsPanel extends JPanel
 	{
 		int boosted = s == Skill.HITPOINTS ? 10 : 1;
 		int baseLevel = s == Skill.HITPOINTS ? 10 : 1;
+		int xp = 0;
 		if (player.getStats() != null)
 		{
 			boosted = player.getSkillBoostedLevel(s);
 			baseLevel = player.getSkillRealLevel(s, displayVirtualLevels);
+			if (player.getStats().getExperiences().containsKey(s)) {
+				xp = player.getStats().getExperiences().get(s);
+			}
 		}
 
 		final SkillPanelSlot panel = panelMap.get(s);
 		panel.updateBoostedLevel(boosted);
 		panel.updateBaseLevel(baseLevel);
-		panel.setToolTipText(s.getName());
+		if (xp > 0) {
+			panel.setToolTipText(s.getName() + " - " + java.text.NumberFormat.getInstance().format(xp) + " XP");
+		} else {
+			panel.setToolTipText(s.getName());
+		}
 	}
 
 	public void updateStats(final PartyPlayer player)
