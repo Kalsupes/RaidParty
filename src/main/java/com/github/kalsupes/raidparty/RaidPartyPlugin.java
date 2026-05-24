@@ -1371,7 +1371,7 @@ public class RaidPartyPlugin extends Plugin {
             String watermark = "RaidParty Verified - " + date + " " + time + " - " + playerName;
 
             // --- 1% Stealth Chatbox Seal ---
-            net.runelite.api.widgets.Widget chatbox = client.getWidget(net.runelite.api.widgets.WidgetInfo.CHATBOX);
+            net.runelite.api.widgets.Widget chatbox = client.getWidget(net.runelite.api.widgets.ComponentID.CHATBOX_FRAME);
             if (chatbox != null && !chatbox.isHidden()) {
                 java.awt.Rectangle bounds = chatbox.getBounds();
                 graphics.setClip(bounds);
