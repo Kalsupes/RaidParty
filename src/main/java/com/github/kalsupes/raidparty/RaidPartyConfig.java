@@ -9,13 +9,29 @@ import net.runelite.client.config.Keybind;
 @ConfigGroup("raidparty")
 public interface RaidPartyConfig extends Config {
     // ================= SECTIONS =================
-    @ConfigSection(name = "Ping System", description = "Configure the ALT/SHIFT+Right-Click Ping System", position = 1, closedByDefault = false)
+    @ConfigSection(name = "General", description = "General plugin settings", position = 0, closedByDefault = false)
+    String generalSection = "generalSection";
+
+    @ConfigSection(name = "Evidence & Screenshots", description = "Settings for RuneWatch auto-evidence", position = 1, closedByDefault = false)
+    String evidenceSection = "evidenceSection";
+
+    @ConfigSection(name = "Color Blindness", description = "Accessibility modes for color blindness", position = 2, closedByDefault = false)
+    String colorblindSection = "colorblindSection";
+
+    @ConfigSection(name = "Ping System", description = "Configure the ALT/SHIFT+Right-Click Ping System", position = 3, closedByDefault = false)
     String pingSection = "pingSection";
 
-    @ConfigSection(name = "Team UI", description = "Configure 3D team tracking and visual warnings", position = 3, closedByDefault = false)
+    @ConfigSection(name = "Team UI", description = "Configure 3D team tracking and visual warnings", position = 4, closedByDefault = false)
     String teamSection = "teamSection";
 
+    // ================= COLOR BLINDNESS =================
+    @ConfigItem(keyName = "colorblindMode", name = "Colorblind Mode", description = "Automatically adjusts ping and outline colors for colorblindness", position = 1, section = colorblindSection)
+    default ColorblindMode colorblindMode() {
+        return ColorblindMode.NONE;
+    }
+
     // ================= GENERAL =================
+
     @ConfigItem(keyName = "announceMegarares", name = "Mega/rare Chat Alerts", description = "Broadcast party-wide megarare drops to the chatbox", position = 4, section = generalSection)
     default boolean announceMegarares() {
         return true;
@@ -118,9 +134,6 @@ public interface RaidPartyConfig extends Config {
         return true;
     }
 
-    @ConfigSection(name = "General", description = "General plugin settings", position = 0, closedByDefault = false)
-    String generalSection = "generalSection";
-
     @ConfigItem(keyName = "displayVirtualLevels", name = "Virtual Levels", description = "Display virtual skill levels above 99 in the party panel", position = 1, section = generalSection)
     default boolean displayVirtualLevels() {
         return true;
@@ -134,6 +147,17 @@ public interface RaidPartyConfig extends Config {
     @ConfigItem(keyName = "chatLootToggle", name = "Loot Rule Chat Alerts", description = "Show chat messages when party members change their Loot rule", position = 3, section = generalSection)
     default boolean chatLootToggle() {
         return true;
+    }
+
+    // ================= EVIDENCE & SCREENSHOTS =================
+    @ConfigItem(keyName = "takeRaidStartScreenshot", name = "Auto-Screenshot Raid Start", description = "Take a screenshot and dump rules in chat when entering a raid", position = 1, section = evidenceSection)
+    default boolean takeRaidStartScreenshot() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "takeDropScreenshot", name = "Auto-Screenshot Drops", description = "Take a screenshot when a Megarare drops", position = 2, section = evidenceSection)
+    default boolean takeDropScreenshot() {
+        return false;
     }
 
     // ================= TEAM UI =================

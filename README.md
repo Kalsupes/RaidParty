@@ -85,7 +85,7 @@ The plugin is aimed at coordinated groups running content such as Tombs of Amasc
 
 ## Why RaidParty
 
-RuneLite's base party tooling is useful, but raid groups often need more immediate context than a simple roster can provide. RaidParty focuses on practical team coordination:
+RuneLite's base party tool is useful, but raid groups often need more immediate context than a simple roster can provide. RaidParty focuses on practical team coordination:
 
 - who is ready
 - what spellbooks are being used
@@ -103,6 +103,7 @@ The goal is not just more data. The goal is faster decisions with less friction.
 RaidParty includes configurable options for:
 - safe, caution, and danger ping hotkeys
 - ping colors and sound effects
+- color blindness
 - 3D ping icon rendering
 - low-HP and critical-HP teammate glow effects
 - loot preference broadcasting
@@ -136,7 +137,6 @@ RaidParty is under active development. Features, UI, and media may continue to e
 Questions, feedback, and collaboration are welcome.
 
 **Join the Discord:** [discord.gg/bosscape](https://discord.gg/bosscape)
-**Email:** contact@bosscape.com
 
 ---
 

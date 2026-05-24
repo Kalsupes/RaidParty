@@ -48,6 +48,16 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import net.runelite.client.ui.DrawManager;
+import net.runelite.client.util.ImageCapture;
+import net.runelite.client.util.ImageUploadStyle;
+import java.awt.Graphics2D;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Image;
+import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 
 @Slf4j
 @PluginDescriptor(name = "RaidParty", description = "A comprehensive party plugin for tracking raids, pings, low-HP warnings, and communication.", tags = {
@@ -94,7 +104,16 @@ public class RaidPartyPlugin extends Plugin {
     private OverlayManager overlayManager;
 
     @Inject
+    private DrawManager drawManager;
+
+    @Inject
+    private ImageCapture imageCapture;
+
+    @Inject
     private RaidPartyOverlay raidpartyOverlay;
+
+    private int previousRegionId = -1;
+    private final int[] lobbyRegions = {12596, 12889, 13118, 13114, 14642, 12613, 13454, 14160, 14648};
 
 
 
@@ -569,13 +588,14 @@ public class RaidPartyPlugin extends Plugin {
 
     private void postPartyChat(String message) {
         final String timeStr = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
-        final String chatMsg = "<col=00ffff>[RaidParty]</col> <col=ffff00>[" + timeStr + "]</col> <col=ffffff>" + message + "</col>";
+        final String chatMsg = "<col=00ffff>[RaidParty]</col> <col=ffff00>[" + timeStr + "]</col> <col=ff0000>" + message + "</col>";
         clientThread.invokeLater(
                 () -> client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", chatMsg, ""));
     }
 
     // --- LIVE PARTY SYNC LOGIC ---
     private int localHp, localMaxHp, localPrayer, localMaxPrayer, localSpec, localRun;
+    private int localCombatLevel = -1;
     private Item[] localEquipment = new Item[0];
     private Item[] localInventory = new Item[0];
     private boolean needsPartySync = false;
@@ -715,6 +735,38 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onGameTick(GameTick event) {
+        int currentRegionId = client.getLocalPlayer() != null && client.getLocalPlayer().getWorldLocation() != null
+                ? client.getLocalPlayer().getWorldLocation().getRegionID()
+                : -1;
+
+        if (currentRegionId != -1 && previousRegionId != -1 && currentRegionId != previousRegionId) {
+            boolean wasInLobby = false;
+            for (int r : lobbyRegions) {
+                if (previousRegionId == r) {
+                    wasInLobby = true;
+                    break;
+                }
+            }
+
+            boolean isNowInLobby = false;
+            for (int r : lobbyRegions) {
+                if (currentRegionId == r) {
+                    isNowInLobby = true;
+                    break;
+                }
+            }
+
+            if (wasInLobby && !isNowInLobby && partyService != null && partyService.isInParty()) {
+                if (config.takeRaidStartScreenshot()) {
+                    triggerRaidStartEvidence();
+                }
+            }
+        }
+
+        if (currentRegionId != -1) {
+            previousRegionId = currentRegionId;
+        }
+
         updateCachedLocalSync();
 
         if (partyService != null && partyService.isInParty()) {
@@ -734,9 +786,12 @@ public class RaidPartyPlugin extends Plugin {
 
             int run = client.getEnergy();
             int spec = client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT);
-            if (run != localRun || spec != localSpec) {
+            int combat = client.getLocalPlayer().getCombatLevel();
+            
+            if (run != localRun || spec != localSpec || combat != localCombatLevel) {
                 localRun = run;
                 localSpec = spec;
+                localCombatLevel = combat;
                 needsPartySync = true;
             }
 
@@ -1071,6 +1126,14 @@ public class RaidPartyPlugin extends Plugin {
     public void onGameStateChanged(GameStateChanged event) {
         if (event.getGameState() == GameState.LOGIN_SCREEN) {
             lastLogout = Instant.now();
+        } else if (event.getGameState() == GameState.LOGGED_IN) {
+            // Force a full party sync once we enter the game so our newly populated arrays broadcast
+            lastSentInvHash = -1;
+            lastSentEqpHash = -1;
+            lastSentSkillsHash = -1;
+            lastSentRunePouchHash = -1;
+            lastSentXpsHash = -1;
+            needsPartySync = true;
         }
     }
 
@@ -1091,7 +1154,7 @@ public class RaidPartyPlugin extends Plugin {
         String message = rawMessage.toLowerCase();
 
         // Check if it's a drop message
-        if (!message.contains("special loot:") && !message.contains("found some loot:") && !message.contains("received a drop:") && !message.contains("found some special loot:")) {
+        if (!message.contains("special loot:") && !message.contains("found some loot:") && !message.contains("received a drop:") && !message.contains("found some special loot:") && !message.contains("valuable drop:")) {
             return;
         }
 
@@ -1131,7 +1194,19 @@ public class RaidPartyPlugin extends Plugin {
             }
         }
 
-        if (matchedItem != null) {
+        boolean isHighValueCoinMessage = false;
+        long parsedCoins = 0;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\(([\\d,]+) coins\\)").matcher(rawMessage);
+        if (m.find()) {
+            try {
+                parsedCoins = Long.parseLong(m.group(1).replace(",", ""));
+                if (parsedCoins >= 10_000_000) {
+                    isHighValueCoinMessage = true;
+                }
+            } catch (Exception e) {}
+        }
+
+        if (matchedItem != null || isHighValueCoinMessage) {
             String playerName = "Someone";
             if (message.contains(" - ")) { // CoX style: "Special loot: Patrolman - Twisted bow"
                 String[] parts = rawMessage.split(" - ");
@@ -1144,23 +1219,47 @@ public class RaidPartyPlugin extends Plugin {
                 playerName = rawMessage.split("found some special loot:")[0].trim();
             } else if (message.contains("found some loot:")) {
                 playerName = rawMessage.split("found some loot:")[0].trim();
+            } else if (message.contains("valuable drop:")) {
+                playerName = client.getLocalPlayer() != null ? client.getLocalPlayer().getName() : "You";
             }
             
             // Format name properly
-            playerName = playerName.substring(0, 1).toUpperCase() + playerName.substring(1);
+            if (playerName.length() > 0) {
+                playerName = playerName.substring(0, 1).toUpperCase() + playerName.substring(1);
+            }
             
-            // Title case the item name
             String finalItemName = "";
-            for (String word : matchedItem.split(" ")) {
-                if (!finalItemName.isEmpty()) finalItemName += " ";
-                finalItemName += word.substring(0, 1).toUpperCase() + word.substring(1);
+            int price = 0;
+
+            if (matchedItem != null) {
+                // Title case the item name
+                for (String word : matchedItem.split(" ")) {
+                    if (!finalItemName.isEmpty()) finalItemName += " ";
+                    finalItemName += word.substring(0, 1).toUpperCase() + word.substring(1);
+                }
+                price = itemManager.getItemPrice(matchedId);
+            } else {
+                // Extract the item name from the message before the '('
+                java.util.regex.Matcher nameMatcher = java.util.regex.Pattern.compile(":\\s*(?:\\d+\\s*x\\s*)?([^(]+)\\s*\\(").matcher(rawMessage);
+                if (nameMatcher.find()) {
+                    finalItemName = nameMatcher.group(1).trim();
+                } else {
+                    finalItemName = "Valuable Item";
+                }
+                price = (int) parsedCoins;
             }
 
-            int price = itemManager.getItemPrice(matchedId);
             String priceStr = price > 0 ? java.text.NumberFormat.getInstance().format(price) : "Unknown";
             
-            String dropMessage = playerName + " Received: <col=ef20ff>" + finalItemName + "</col> [<col=00ff00>" + priceStr + "</col> gp]";
+            String date = java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            String dropMessage = playerName + " Received: <col=ef20ff>" + finalItemName + "</col> [<col=00ff00>" + priceStr + "</col> gp] [" + date + "]";
             postPartyChat(dropMessage);
+
+            if (config.takeDropScreenshot()) {
+                clientThread.invokeLater(() -> {
+                    takeEvidenceScreenshot("Drops");
+                });
+            }
         }
     }
 
@@ -1222,5 +1321,86 @@ public class RaidPartyPlugin extends Plugin {
         if (partyService.isInParty()) {
             sendPartySyncMessage();
         }
+    }
+
+    // --- Evidence ---
+    private void triggerRaidStartEvidence() {
+        if (partyService == null || !partyService.isInParty()) return;
+
+        String date = java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        StringBuilder sb = new StringBuilder();
+        sb.append("Raid Started [").append(date).append("]! Rules: ");
+        boolean first = true;
+        for (net.runelite.client.party.PartyMember member : partyService.getMembers()) {
+            if (member == null) continue;
+            RaidPartyPlayerSync sync = partyData.get(member.getMemberId());
+            if (sync != null && sync.getLootRule() != null && sync.getLootRule() != LootRule.UNSPECIFIED) {
+                if (!first) sb.append(", ");
+                String color = sync.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
+                sb.append(member.getDisplayName()).append(" <col=").append(color).append(">(").append(sync.getLootRule().name()).append(")</col>");
+                first = false;
+            }
+        }
+        
+        if (first) {
+            sb.append("None Confirmed");
+        }
+
+        postPartyChat(sb.toString());
+
+        // Delay screenshot by 3.5 seconds to ensure the black loading screen fades away
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(3500);
+            } catch (Exception e) {
+                // ignore
+            }
+            clientThread.invokeLater(() -> {
+                takeEvidenceScreenshot("RaidStart");
+            });
+        });
+    }
+
+    private void takeEvidenceScreenshot(String subDir) {
+        java.util.function.Consumer<Image> imageCallback = (img) -> {
+            Graphics2D graphics = (Graphics2D) img.getGraphics();
+
+            String date = java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            String time = java.time.LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            String playerName = client.getLocalPlayer() != null ? client.getLocalPlayer().getName() : "Unknown";
+            String watermark = "RaidParty Verified - " + date + " " + time + " - " + playerName;
+
+            // --- 1% Stealth Chatbox Seal ---
+            net.runelite.api.widgets.Widget chatbox = client.getWidget(net.runelite.api.widgets.WidgetInfo.CHATBOX);
+            if (chatbox != null && !chatbox.isHidden()) {
+                java.awt.Rectangle bounds = chatbox.getBounds();
+                graphics.setClip(bounds);
+                
+                Color stealthText = new Color(255, 255, 255, 3); // 1% white
+                Color stealthShadow = new Color(0, 0, 0, 3);     // 1% black
+                
+                // Smaller font for tighter stacking inside the chatbox
+                graphics.setFont(new Font("Arial", Font.BOLD, 18));
+                FontMetrics sm = graphics.getFontMetrics();
+                int sWidth = sm.stringWidth(watermark) + 10;
+                int sHeight = sm.getHeight() + 5;
+                
+                for (int y = bounds.y; y < bounds.y + bounds.height + sHeight; y += sHeight) {
+                    for (int x = bounds.x; x < bounds.x + bounds.width; x += sWidth) {
+                        graphics.setColor(stealthShadow);
+                        graphics.drawString(watermark, x + 1, y + 1);
+                        graphics.setColor(stealthText);
+                        graphics.drawString(watermark, x, y);
+                    }
+                }
+                graphics.setClip(null);
+            }
+            graphics.dispose();
+
+            BufferedImage bufferedImage = (BufferedImage) img;
+            imageCapture.takeScreenshot(bufferedImage, "RaidParty", subDir, false, ImageUploadStyle.NEITHER);
+        };
+
+        drawManager.requestNextFrameListener(imageCallback);
     }
 }

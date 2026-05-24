@@ -170,16 +170,16 @@ public class RaidPartyOverlay extends Overlay {
                 shapeToDraw = Perspective.getCanvasTilePoly(client, lp);
 
                 if (ping.getPingType() == 2) {
-                    baseColor = config.dangerPingColor();
+                    baseColor = config.colorblindMode().adjustColor(config.dangerPingColor(), 2);
                     floatingText = "X";
                 } else if (ping.getPingType() == 1) {
-                    baseColor = config.cautionPingColor();
+                    baseColor = config.colorblindMode().adjustColor(config.cautionPingColor(), 1);
                     floatingText = "!";
                 } else if (ping.getPingType() == 3) {
-                    baseColor = config.resourcePingColor();
+                    baseColor = config.colorblindMode().adjustColor(config.resourcePingColor(), 3);
                     floatingText = "+";
                 } else {
-                    baseColor = config.safePingColor();
+                    baseColor = config.colorblindMode().adjustColor(config.safePingColor(), 0);
                     floatingText = "v";
                 }
 
@@ -264,10 +264,10 @@ public class RaidPartyOverlay extends Overlay {
                 float hpPct = (float) syncData.getHp() / syncData.getMaxHp();
                 Color glowColor = null;
 
-                if (hpPct <= (config.criticalHpThreshold() / 100f) && config.enableCriticalHpGlow()) {
-                    glowColor = config.criticalHpColor();
-                } else if (hpPct <= (config.lowHpThreshold() / 100f) && config.enableLowHpGlow()) {
-                    glowColor = config.lowHpColor();
+                if (hpPct <= config.criticalHpThreshold() / 100f && config.enableCriticalHpGlow()) {
+                    glowColor = config.colorblindMode().adjustColor(config.criticalHpColor(), 2);
+                } else if (hpPct <= config.lowHpThreshold() / 100f && config.enableLowHpGlow()) {
+                    glowColor = config.colorblindMode().adjustColor(config.lowHpColor(), 4);
                 }
 
                 if (glowColor != null) {
