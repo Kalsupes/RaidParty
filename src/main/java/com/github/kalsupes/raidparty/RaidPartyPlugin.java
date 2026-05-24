@@ -600,6 +600,7 @@ public class RaidPartyPlugin extends Plugin {
     private Item[] localInventory = new Item[0];
     private boolean needsPartySync = false;
     private int partySyncTimer = 0;
+    private int evidenceScreenshotTicks = -1;
 
     private final Map<Long, RaidPartyPlayerSync> partyData = new HashMap<>();
 
@@ -735,6 +736,14 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onGameTick(GameTick event) {
+        if (evidenceScreenshotTicks > 0) {
+            evidenceScreenshotTicks--;
+            if (evidenceScreenshotTicks == 0) {
+                evidenceScreenshotTicks = -1;
+                takeEvidenceScreenshot("RaidStart");
+            }
+        }
+
         int currentRegionId = client.getLocalPlayer() != null && client.getLocalPlayer().getWorldLocation() != null
                 ? client.getLocalPlayer().getWorldLocation().getRegionID()
                 : -1;
@@ -1348,17 +1357,8 @@ public class RaidPartyPlugin extends Plugin {
 
         postPartyChat(sb.toString());
 
-        // Delay screenshot by 3.5 seconds to ensure the black loading screen fades away
-        java.util.concurrent.CompletableFuture.runAsync(() -> {
-            try {
-                Thread.sleep(3500);
-            } catch (Exception e) {
-                // ignore
-            }
-            clientThread.invokeLater(() -> {
-                takeEvidenceScreenshot("RaidStart");
-            });
-        });
+        // Delay screenshot by 6 game ticks (~3.6 seconds) to ensure black loading screen fades
+        evidenceScreenshotTicks = 6;
     }
 
     private void takeEvidenceScreenshot(String subDir) {
