@@ -130,6 +130,8 @@ public class RaidPartyPlugin extends Plugin {
 
     // Ping Tracking
     private final List<BossPing> activePings = new CopyOnWriteArrayList<>();
+    private long lastLocalPingTime = 0;
+    private long lastGlobalPingReceivedTime = 0;
 
     public List<BossPing> getActivePings() {
         return activePings;
@@ -202,6 +204,7 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(RaidPartyPlayerSync.class);
             wsClient.registerMessage(RaidPartyPartyMessage.class);
             wsClient.registerMessage(BossPingMessage.class);
+            wsClient.registerMessage(KickPlayerMessage.class);
 
             overlayManager.add(raidpartyOverlay);
 
@@ -239,6 +242,7 @@ public class RaidPartyPlugin extends Plugin {
         wsClient.unregisterMessage(RaidPartyPlayerSync.class);
         wsClient.unregisterMessage(RaidPartyPartyMessage.class);
         wsClient.unregisterMessage(BossPingMessage.class);
+        wsClient.unregisterMessage(KickPlayerMessage.class);
         activePings.clear();
         partyData.clear();
         lastLogout = null;
@@ -399,6 +403,10 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     private void executePing(int pingType, boolean forceEntity) {
+        long now = System.currentTimeMillis();
+        if (now - lastLocalPingTime < 3000) return;
+        lastLocalPingTime = now;
+
         clientThread.invokeLater(() -> {
             net.runelite.api.Tile targetTile = client.getSelectedSceneTile();
             if (targetTile == null)
@@ -469,7 +477,7 @@ public class RaidPartyPlugin extends Plugin {
                 if (tType == 0) return;
             }
 
-            activePings.add(new BossPing(wp, pingType, tType, tIndex, System.currentTimeMillis() + 4000));
+            activePings.add(new BossPing(wp, pingType, tType, tIndex, System.currentTimeMillis() + 2000));
             playPingSound(pingType, tType);
 
             if (partyService != null && partyService.isInParty()) {
@@ -508,13 +516,31 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onBossPingMessage(BossPingMessage event) {
+        if (config.disableAllPings()) return;
+
         if (partyService != null && partyService.getLocalMember() != null
                 && partyService.getLocalMember().getMemberId() == event.getMemberId()) {
             return;
         }
+
+        long now = System.currentTimeMillis();
+        if (now - lastGlobalPingReceivedTime < 3000) return;
+
+        if (partyService != null) {
+            net.runelite.client.party.PartyMember sender = partyService.getMemberById(event.getMemberId());
+            if (sender != null) {
+                String senderName = sender.getDisplayName();
+                if (senderName != null && config.mutedPingUsers().contains(senderName)) {
+                    return; // Sender is muted
+                }
+            }
+        }
+
+        lastGlobalPingReceivedTime = now;
+
         WorldPoint wp = new WorldPoint(event.getX(), event.getY(), event.getPlane());
         activePings.add(new BossPing(wp, event.getPingType(), event.getTargetType(), event.getTargetIndex(),
-                System.currentTimeMillis() + 4000));
+                System.currentTimeMillis() + 2000));
         playPingSound(event.getPingType(), event.getTargetType());
     }
 
@@ -538,6 +564,23 @@ public class RaidPartyPlugin extends Plugin {
                 }
             }
         });
+    }
+
+    @Subscribe
+    public void onKickPlayerMessage(KickPlayerMessage event) {
+        if (partyService == null || partyService.getLocalMember() == null)
+            return;
+        
+        // Announce to everyone
+        clientThread.invokeLater(() -> {
+            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                    "<col=ff0000>[RaidParty] " + event.getKickerName() + " kicked " + event.getTargetName() + " from the party.</col>", "");
+        });
+
+        if (event.getTargetMemberId() == partyService.getLocalMember().getMemberId()) {
+            // We have been kicked
+            partyService.changeParty(null);
+        }
     }
 
     @Subscribe

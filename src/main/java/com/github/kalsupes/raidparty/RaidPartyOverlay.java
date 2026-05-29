@@ -44,7 +44,7 @@ public class RaidPartyOverlay extends Overlay {
                 continue;
 
             long remaining = ping.getExpiryTime() - now;
-            float lifespanPct = Math.max(0, remaining / 4000f); // 0 to 1 based on 4s total life
+            float lifespanPct = Math.max(0, remaining / 2000f); // 0 to 1 based on 2s total life
 
             Color baseColor;
             java.awt.Shape shapeToDraw = null;

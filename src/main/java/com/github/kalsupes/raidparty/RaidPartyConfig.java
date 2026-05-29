@@ -38,6 +38,16 @@ public interface RaidPartyConfig extends Config {
     }
 
     // ================= PING SYSTEM =================
+    @ConfigItem(keyName = "disableAllPings", name = "Disable All Incoming Pings", description = "Ignore all pings from your party", position = 0, section = pingSection)
+    default boolean disableAllPings() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "mutedPingUsers", name = "Muted Ping Users (Comma Separated)", description = "", position = 99, hidden = true)
+    default String mutedPingUsers() {
+        return "";
+    }
+
     // --- Safe ---
     @ConfigItem(keyName = "safePingHotkey", name = "Safe Ping Hotkey", description = "Hotkey to drop a Safe (Green) Ping", position = 1, section = pingSection)
     default Keybind safePingHotkey() {

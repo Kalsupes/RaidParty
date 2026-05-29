@@ -30,6 +30,9 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class RaidPartyPlayerCard extends JPanel {
     private static final Dimension IMAGE_SIZE = new Dimension(24, 24);
@@ -490,10 +493,49 @@ public class RaidPartyPlayerCard extends JPanel {
         return new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e))
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    showContextMenu(e);
                     return;
+                }
                 expanded = !expanded;
                 buildCard();
+            }
+
+            private void showContextMenu(MouseEvent e) {
+                JPopupMenu popup = new JPopupMenu();
+                String mutedStr = plugin.getConfig().mutedPingUsers();
+                if (mutedStr == null) mutedStr = "";
+                List<String> mutedList = new ArrayList<>(Arrays.asList(mutedStr.split(",")));
+                boolean isMuted = mutedList.contains(memberName);
+
+                JMenuItem muteItem = new JMenuItem(isMuted ? "Unmute Pings" : "Mute Pings");
+                muteItem.addActionListener(evt -> {
+                    if (isMuted) {
+                        mutedList.remove(memberName);
+                    } else {
+                        mutedList.add(memberName);
+                    }
+                    // Filter empty strings and join
+                    mutedList.removeIf(String::isEmpty);
+                    String newMuted = String.join(",", mutedList);
+                    plugin.getConfigManager().setConfiguration("raidparty", "mutedPingUsers", newMuted);
+                });
+                popup.add(muteItem);
+
+                if (plugin.getPartyService() != null && plugin.getPartyService().isInParty() 
+                        && syncData != null && syncData.getMemberId() != plugin.getPartyService().getLocalMember().getMemberId()) {
+                    JMenuItem kickItem = new JMenuItem("Kick from Party");
+                    kickItem.setForeground(Color.RED);
+                    kickItem.addActionListener(evt -> {
+                        String localName = plugin.getLocalPlayerName();
+                        if (localName == null) localName = "Unknown";
+                        plugin.getPartyService().send(new KickPlayerMessage(syncData.getMemberId(), memberName, localName));
+                    });
+                    popup.addSeparator();
+                    popup.add(kickItem);
+                }
+
+                popup.show(e.getComponent(), e.getX(), e.getY());
             }
         };
     }
