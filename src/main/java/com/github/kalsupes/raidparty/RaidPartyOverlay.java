@@ -196,15 +196,6 @@ public class RaidPartyOverlay extends Overlay {
                         (int) (50 * lifespanPct)));
                 graphics.fill(shapeToDraw);
 
-                // Emulate a blurred glow by drawing multiple fading thick strokes
-                for (int i = 0; i < 5; i++) {
-                    float glowAlpha = 1f - (i / 5f);
-                    graphics.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(),
-                            (int) (100 * glowAlpha * lifespanPct)));
-                    graphics.setStroke(new BasicStroke(2f + (i * 2.5f)));
-                    graphics.draw(shapeToDraw);
-                }
-
                 // Core solid bright line
                 graphics.setColor(new Color(baseColor.getRed(), baseColor.getGreen(), baseColor.getBlue(),
                         (int) (255 * lifespanPct)));

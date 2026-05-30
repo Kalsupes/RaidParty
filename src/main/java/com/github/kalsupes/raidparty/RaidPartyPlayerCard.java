@@ -522,19 +522,6 @@ public class RaidPartyPlayerCard extends JPanel {
                 });
                 popup.add(muteItem);
 
-                if (plugin.getPartyService() != null && plugin.getPartyService().isInParty() 
-                        && syncData != null && syncData.getMemberId() != plugin.getPartyService().getLocalMember().getMemberId()) {
-                    JMenuItem kickItem = new JMenuItem("Kick from Party");
-                    kickItem.setForeground(Color.RED);
-                    kickItem.addActionListener(evt -> {
-                        String localName = plugin.getLocalPlayerName();
-                        if (localName == null) localName = "Unknown";
-                        plugin.getPartyService().send(new KickPlayerMessage(syncData.getMemberId(), memberName, localName));
-                    });
-                    popup.addSeparator();
-                    popup.add(kickItem);
-                }
-
                 popup.show(e.getComponent(), e.getX(), e.getY());
             }
         };

@@ -190,7 +190,7 @@ public interface RaidPartyConfig extends Config {
 
     @ConfigItem(keyName = "enableCriticalHpGlow", name = "Enable Critical HP Glow", description = "Toggle the pulsing 3D outline when a teammate drops below the Critical HP threshold", position = 3, section = teamSection)
     default boolean enableCriticalHpGlow() {
-        return true;
+        return false;
     }
 
     @net.runelite.client.config.Range(min = 1, max = 99)

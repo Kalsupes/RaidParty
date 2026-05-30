@@ -204,7 +204,6 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(RaidPartyPlayerSync.class);
             wsClient.registerMessage(RaidPartyPartyMessage.class);
             wsClient.registerMessage(BossPingMessage.class);
-            wsClient.registerMessage(KickPlayerMessage.class);
 
             overlayManager.add(raidpartyOverlay);
 
@@ -242,7 +241,6 @@ public class RaidPartyPlugin extends Plugin {
         wsClient.unregisterMessage(RaidPartyPlayerSync.class);
         wsClient.unregisterMessage(RaidPartyPartyMessage.class);
         wsClient.unregisterMessage(BossPingMessage.class);
-        wsClient.unregisterMessage(KickPlayerMessage.class);
         activePings.clear();
         partyData.clear();
         lastLogout = null;
@@ -393,7 +391,7 @@ public class RaidPartyPlugin extends Plugin {
         final String finalName = name;
         clientThread.invokeLater(() -> {
             client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                    "<col=00ffff>[RaidParty]</col> <col=ffffff>" + finalName + ":</col> " + message, "");
+                    "<col=aa77ff>[RaidParty]</col> <col=55aaff>" + finalName + ":</col> <col=ffffff>" + message + "</col>", "");
 
             if (client.getLocalPlayer() != null) {
                 client.getLocalPlayer().setOverheadText(message);
@@ -403,11 +401,25 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     private void executePing(int pingType, boolean forceEntity) {
-        long now = System.currentTimeMillis();
-        if (now - lastLocalPingTime < 3000) return;
-        lastLocalPingTime = now;
-
         clientThread.invokeLater(() -> {
+            if (client.getLocalPlayer() != null) {
+                // Block if dead
+                if (client.getLocalPlayer().getHealthRatio() == 0) {
+                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                            "<col=aa77ff>[RaidParty]</col> <col=ff5555>You cannot ping while you are dead.</col>", "");
+                    return;
+                }
+
+                // Block if spectating in ToB (elevated planes in ToB regions)
+                int region = client.getLocalPlayer().getWorldLocation().getRegionID();
+                int plane = client.getLocalPlayer().getWorldLocation().getPlane();
+                if (plane > 0 && (region == 12613 || region == 13125 || region == 13122 || region == 13123 || region == 12612 || region == 12611 || region == 13379)) {
+                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                            "<col=aa77ff>[RaidParty]</col> <col=ff5555>You cannot ping while spectating.</col>", "");
+                    return;
+                }
+            }
+
             net.runelite.api.Tile targetTile = client.getSelectedSceneTile();
             if (targetTile == null)
                 return;
@@ -523,9 +535,6 @@ public class RaidPartyPlugin extends Plugin {
             return;
         }
 
-        long now = System.currentTimeMillis();
-        if (now - lastGlobalPingReceivedTime < 3000) return;
-
         if (partyService != null) {
             net.runelite.client.party.PartyMember sender = partyService.getMemberById(event.getMemberId());
             if (sender != null) {
@@ -535,8 +544,6 @@ public class RaidPartyPlugin extends Plugin {
                 }
             }
         }
-
-        lastGlobalPingReceivedTime = now;
 
         WorldPoint wp = new WorldPoint(event.getX(), event.getY(), event.getPlane());
         activePings.add(new BossPing(wp, event.getPingType(), event.getTargetType(), event.getTargetIndex(),
@@ -552,8 +559,8 @@ public class RaidPartyPlugin extends Plugin {
             return;
         clientThread.invokeLater(() -> {
             client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                    "<col=00ffff>[RaidParty]</col> <col=ffffff>" + event.getSenderName() + ":</col> "
-                            + event.getMessage(),
+                    "<col=aa77ff>[RaidParty]</col> <col=55aaff>" + event.getSenderName() + ":</col> <col=ffffff>"
+                            + event.getMessage() + "</col>",
                     "");
 
             for (net.runelite.api.Player p : client.getPlayers()) {
@@ -564,23 +571,6 @@ public class RaidPartyPlugin extends Plugin {
                 }
             }
         });
-    }
-
-    @Subscribe
-    public void onKickPlayerMessage(KickPlayerMessage event) {
-        if (partyService == null || partyService.getLocalMember() == null)
-            return;
-        
-        // Announce to everyone
-        clientThread.invokeLater(() -> {
-            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                    "<col=ff0000>[RaidParty] " + event.getKickerName() + " kicked " + event.getTargetName() + " from the party.</col>", "");
-        });
-
-        if (event.getTargetMemberId() == partyService.getLocalMember().getMemberId()) {
-            // We have been kicked
-            partyService.changeParty(null);
-        }
     }
 
     @Subscribe
@@ -603,9 +593,9 @@ public class RaidPartyPlugin extends Plugin {
             if (existing == null || existing.getReadyState() != event.getReadyState()) {
                 if (config.chatReadyToggle()) {
                     if (event.getReadyState() == 1) {
-                        postPartyChat(event.getUsername() + " is now <col=00ff00>Ready</col>");
+                        postPartyChat("<col=55aaff>" + event.getUsername() + "</col> is now <col=00ff00>Ready</col>");
                     } else if (event.getReadyState() == 2) {
-                        postPartyChat(event.getUsername() + " is now <col=ff0000>Not Ready</col>");
+                        postPartyChat("<col=55aaff>" + event.getUsername() + "</col> is now <col=ff5555>Not Ready</col>");
                     }
                 }
             }
@@ -614,7 +604,7 @@ public class RaidPartyPlugin extends Plugin {
                 if (event.getLootRule() != null && event.getLootRule() != LootRule.UNSPECIFIED) {
                     if (config.chatLootToggle()) {
                         String color = event.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
-                        postPartyChat(event.getUsername() + " Loot Confirmed: <col=" + color + ">" + event.getLootRule() + "</col>");
+                        postPartyChat("<col=55aaff>" + event.getUsername() + "</col> Loot Confirmed: <col=" + color + ">" + event.getLootRule() + "</col>");
                     }
                 }
             }
@@ -631,7 +621,7 @@ public class RaidPartyPlugin extends Plugin {
 
     private void postPartyChat(String message) {
         final String timeStr = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
-        final String chatMsg = "<col=00ffff>[RaidParty]</col> <col=ffff00>[" + timeStr + "]</col> <col=ff0000>" + message + "</col>";
+        final String chatMsg = "<col=aa77ff>[RaidParty]</col> <col=909090>[" + timeStr + "]</col> " + message;
         clientThread.invokeLater(
                 () -> client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "", chatMsg, ""));
     }
@@ -1381,21 +1371,21 @@ public class RaidPartyPlugin extends Plugin {
 
         String date = java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         StringBuilder sb = new StringBuilder();
-        sb.append("Raid Started [").append(date).append("]! Rules: ");
+        sb.append("<col=ffffff>Raid Started [</col><col=909090>").append(date).append("</col><col=ffffff>]! Rules:</col> ");
         boolean first = true;
         for (net.runelite.client.party.PartyMember member : partyService.getMembers()) {
             if (member == null) continue;
             RaidPartyPlayerSync sync = partyData.get(member.getMemberId());
             if (sync != null && sync.getLootRule() != null && sync.getLootRule() != LootRule.UNSPECIFIED) {
-                if (!first) sb.append(", ");
+                if (!first) sb.append("<col=ffffff>, </col>");
                 String color = sync.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";
-                sb.append(member.getDisplayName()).append(" <col=").append(color).append(">(").append(sync.getLootRule().name()).append(")</col>");
+                sb.append("<col=55aaff>").append(member.getDisplayName()).append("</col> <col=").append(color).append(">(").append(sync.getLootRule().name()).append(")</col>");
                 first = false;
             }
         }
         
         if (first) {
-            sb.append("None Confirmed");
+            sb.append("<col=ff5555>None Confirmed</col>");
         }
 
         postPartyChat(sb.toString());
