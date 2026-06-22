@@ -162,18 +162,18 @@ public interface RaidPartyConfig extends Config {
     // ================= EVIDENCE & SCREENSHOTS =================
     @ConfigItem(keyName = "takeRaidStartScreenshot", name = "Auto-Screenshot Raid Start", description = "Take a screenshot and dump rules in chat when entering a raid", position = 1, section = evidenceSection)
     default boolean takeRaidStartScreenshot() {
-        return false;
+        return true;
     }
 
     @ConfigItem(keyName = "takeDropScreenshot", name = "Auto-Screenshot Drops", description = "Take a screenshot when a Megarare drops", position = 2, section = evidenceSection)
     default boolean takeDropScreenshot() {
-        return false;
+        return true;
     }
 
     // ================= TEAM UI =================
     @ConfigItem(keyName = "enableLowHpGlow", name = "Enable Low HP Glow", description = "Toggle the pulsing 3D outline when a teammate drops below the Low HP threshold", position = 0, section = teamSection)
     default boolean enableLowHpGlow() {
-        return true;
+        return false;
     }
 
     @net.runelite.client.config.Range(min = 1, max = 99)

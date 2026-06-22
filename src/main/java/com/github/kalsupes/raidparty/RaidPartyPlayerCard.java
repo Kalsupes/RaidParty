@@ -295,22 +295,25 @@ public class RaidPartyPlayerCard extends JPanel {
         banner.setBorder(new EmptyBorder(6, 8, 6, 8));
         banner.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
-        JPanel leftInfo = new JPanel();
-        leftInfo.setLayout(new BoxLayout(leftInfo, BoxLayout.Y_AXIS));
+        JPanel leftInfo = new JPanel(new GridBagLayout());
         leftInfo.setOpaque(false);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
 
         JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         nameRow.setOpaque(false);
-        JLabel nameLbl = new JLabel(memberName);
+        JLabel nameLbl = new JLabel(memberName) {
+            @Override
+            public Dimension getPreferredSize() {
+                Dimension d = super.getPreferredSize();
+                if (d.width > 110) d.width = 110;
+                return d;
+            }
+        };
         nameLbl.setFont(FontManager.getRunescapeBoldFont());
-        nameLbl.setForeground(isHost ? GOLD : Color.WHITE);
+        nameLbl.setForeground(Color.WHITE);
         nameRow.add(nameLbl);
-        if (isHost) {
-            JLabel crown = new JLabel(" [H]");
-            crown.setFont(FontManager.getRunescapeSmallFont());
-            crown.setForeground(GOLD);
-            nameRow.add(crown);
-        }
 
         // Add discord avatar if possible
         BufferedImage avatar = getDiscordAvatarFromParty();
@@ -329,6 +332,35 @@ public class RaidPartyPlayerCard extends JPanel {
 
         boolean hasBadges = false;
 
+        // Add Ready Check Badge
+        if (syncData != null && syncData.getReadyState() > 0) {
+            final boolean isReady = syncData.getReadyState() == 1;
+            final Color readyBg = isReady ? new Color(40, 160, 60, 200) // Green
+                    : new Color(190, 40, 40, 200); // Red
+            final String readyText = isReady ? "R" : "NR";
+
+            JLabel readyBadge = new JLabel(readyText, SwingConstants.CENTER) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(readyBg);
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                    g2.setColor(new Color(255, 255, 255, 50));
+                    g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+                    g2.dispose();
+                    super.paintComponent(g);
+                }
+            };
+            readyBadge.setFont(FontManager.getRunescapeSmallFont());
+            readyBadge.setForeground(Color.WHITE);
+            readyBadge.setBorder(new EmptyBorder(1, 4, 1, 4));
+            readyBadge.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            badgesPanel.add(readyBadge);
+            hasBadges = true;
+        }
+
         // Add Loot Rule Badge
         if (syncData != null && syncData.getLootRule() != null && syncData.getLootRule() != LootRule.UNSPECIFIED) {
             final boolean isFfa = syncData.getLootRule() == LootRule.FFA;
@@ -341,9 +373,9 @@ public class RaidPartyPlayerCard extends JPanel {
                     Graphics2D g2 = (Graphics2D) g.create();
                     g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setColor(badgeBg);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                    g2.fillRect(0, 0, getWidth(), getHeight());
                     g2.setColor(new Color(255, 255, 255, 50)); // subtle highlight
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                    g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
                     g2.dispose();
                     super.paintComponent(g);
                 }
@@ -353,46 +385,16 @@ public class RaidPartyPlayerCard extends JPanel {
             lootBadge.setBorder(new EmptyBorder(1, 4, 1, 4));
             lootBadge.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+            if (hasBadges)
+                badgesPanel.add(Box.createRigidArea(new Dimension(0, 2))); // gap between badges
             badgesPanel.add(lootBadge);
             hasBadges = true;
         }
 
-        // Add Ready Check Badge
-        if (syncData != null && syncData.getReadyState() > 0) {
-            final boolean isReady = syncData.getReadyState() == 1;
-            final Color readyBg = isReady ? new Color(40, 160, 60, 200) // Green
-                    : new Color(190, 40, 40, 200); // Red
-            final String readyText = isReady ? "READY" : "NOT READY";
-
-            JLabel readyBadge = new JLabel(readyText, SwingConstants.CENTER) {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2.setColor(readyBg);
-                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-                    g2.setColor(new Color(255, 255, 255, 50));
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-                    g2.dispose();
-                    super.paintComponent(g);
-                }
-            };
-            readyBadge.setFont(FontManager.getRunescapeSmallFont());
-            readyBadge.setForeground(Color.WHITE);
-            readyBadge.setBorder(new EmptyBorder(1, 4, 1, 4));
-            readyBadge.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-            if (hasBadges)
-                badgesPanel.add(Box.createRigidArea(new Dimension(0, 2))); // gap between badges
-            badgesPanel.add(readyBadge);
-            hasBadges = true;
-        }
-
-        if (hasBadges) {
-            nameRow.add(badgesPanel);
-        }
-
-        leftInfo.add(nameRow);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0;
+        leftInfo.add(nameRow, gbc);
 
         if (syncData != null) {
             String sub = "";
@@ -411,9 +413,27 @@ public class RaidPartyPlayerCard extends JPanel {
                 subLbl.setFont(FontManager.getRunescapeSmallFont());
                 subLbl.setForeground(Color.GRAY);
                 subRow.add(subLbl);
-                leftInfo.add(subRow);
+                gbc.gridy = 1;
+                leftInfo.add(subRow, gbc);
             }
         }
+
+        if (hasBadges) {
+            gbc.gridx = 1;
+            gbc.gridy = 0;
+            gbc.gridheight = 2;
+            gbc.anchor = GridBagConstraints.WEST; // Center vertically next to the two rows
+            gbc.insets = new Insets(0, 4, 0, 0);
+            leftInfo.add(badgesPanel, gbc);
+        }
+
+        // Add a filler to absorb remaining horizontal space so it aligns left
+        gbc.gridx = 2;
+        gbc.gridy = 0;
+        gbc.gridheight = 2;
+        gbc.weightx = 1.0;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        leftInfo.add(Box.createHorizontalGlue(), gbc);
 
         JPanel topHeader = new JPanel(new BorderLayout());
         topHeader.setOpaque(false);
@@ -465,12 +485,46 @@ public class RaidPartyPlayerCard extends JPanel {
 
             int hp = syncData.getHp();
             int maxHp = syncData.getMaxHp();
-            Color hpCol = hp < maxHp / 3 ? Color.RED : HP_RED; // Changed to red as requested by user
+            Color hpCol = hp < maxHp / 3 ? Color.RED : HP_RED;
 
-            statsRow.add(createStatCell("\u2764", hp, hpCol));
-            statsRow.add(createStatCell("\u2728", syncData.getPrayer(), PRAYER_AQUA));
-            statsRow.add(createStatCell("\u2694", syncData.getSpec() / 10, SPEC_YELLOW));
-            statsRow.add(createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, RUN_ORANGE));
+            BufferedImage hpImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.HITPOINTS);
+            BufferedImage prayImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.PRAYER);
+
+            if (hpImg != null) {
+                BufferedImage resizedHp = ImageUtil.resizeImage(hpImg, 15, 15);
+                statsRow.add(createStatCell(new ImageIcon(resizedHp), hp, hpCol));
+            } else {
+                statsRow.add(createStatCell("\u2764", hp, hpCol));
+            }
+
+            if (prayImg != null) {
+                BufferedImage resizedPray = ImageUtil.resizeImage(prayImg, 15, 15);
+                statsRow.add(createStatCell(new ImageIcon(resizedPray), syncData.getPrayer(), PRAYER_AQUA));
+            } else {
+                statsRow.add(createStatCell("\u2728", syncData.getPrayer(), PRAYER_AQUA));
+            }
+
+            JPanel specCell = createStatCell("\u2694", syncData.getSpec() / 10, SPEC_YELLOW);
+            statsRow.add(specCell);
+            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_SPECIAL_ICON, 0, img -> {
+                SwingUtilities.invokeLater(() -> {
+                    JLabel iconLbl = (JLabel) specCell.getComponent(0);
+                    BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
+                    iconLbl.setIcon(new ImageIcon(resizedImg));
+                    iconLbl.setText(null);
+                });
+            });
+
+            JPanel runCell = createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, RUN_ORANGE);
+            statsRow.add(runCell);
+            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON, 0, img -> {
+                SwingUtilities.invokeLater(() -> {
+                    JLabel iconLbl = (JLabel) runCell.getComponent(0);
+                    BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
+                    iconLbl.setIcon(new ImageIcon(resizedImg));
+                    iconLbl.setText(null);
+                });
+            });
 
             JPanel bannerWrap = new JPanel(new BorderLayout());
             bannerWrap.setOpaque(false);
@@ -533,6 +587,18 @@ public class RaidPartyPlayerCard extends JPanel {
         JLabel iconLbl = new JLabel(icon);
         iconLbl.setFont(FontManager.getRunescapeSmallFont());
         iconLbl.setForeground(color);
+        JLabel valLbl = new JLabel(String.valueOf(value));
+        valLbl.setFont(FontManager.getRunescapeBoldFont());
+        valLbl.setForeground(color);
+        cell.add(iconLbl);
+        cell.add(valLbl);
+        return cell;
+    }
+
+    private JPanel createStatCell(javax.swing.Icon icon, int value, Color color) {
+        JPanel cell = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
+        cell.setOpaque(false);
+        JLabel iconLbl = new JLabel(icon);
         JLabel valLbl = new JLabel(String.valueOf(value));
         valLbl.setFont(FontManager.getRunescapeBoldFont());
         valLbl.setForeground(color);

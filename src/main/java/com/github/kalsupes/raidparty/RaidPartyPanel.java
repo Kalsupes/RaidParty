@@ -9,6 +9,8 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.HashMap;
 import java.util.Map;
+import net.runelite.client.util.ImageUtil;
+import java.awt.image.BufferedImage;
 
 public class RaidPartyPanel extends PluginPanel {
     private final RaidPartyPlugin plugin;
@@ -56,7 +58,7 @@ public class RaidPartyPanel extends PluginPanel {
         emptyStateLabel.setBorder(new EmptyBorder(20, 0, 0, 0));
 
         // Disconnected panel setup (top buttons)
-        disconnectedPanel.setLayout(new GridLayout(2, 1, 5, 5));
+        disconnectedPanel.setLayout(new GridLayout(3, 1, 5, 5));
         disconnectedPanel.setOpaque(false);
 
         JPanel topRowButtons = new JPanel(new GridLayout(1, 2, 5, 0));
@@ -100,6 +102,19 @@ public class RaidPartyPanel extends PluginPanel {
 
         disconnectedPanel.add(topRowButtons);
         disconnectedPanel.add(joinPreviousButton);
+
+        JPanel socialRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        socialRow.setOpaque(false);
+
+        JButton discordBtn = createIconButton("/com/github/kalsupes/raidparty/Discord.png", "Join Discord", "https://discord.gg/Bosscape");
+        JButton githubBtn = createIconButton("/com/github/kalsupes/raidparty/GitHub.png", "View on GitHub", "https://runelite.net/plugin-hub/show/raidparty");
+        JButton coffeeBtn = createIconButton("/com/github/kalsupes/raidparty/Coffee.png", "Buy me a coffee", "https://buymeacoffee.com/kalsupes");
+
+        socialRow.add(discordBtn);
+        socialRow.add(githubBtn);
+        socialRow.add(coffeeBtn);
+        
+        disconnectedPanel.add(socialRow);
 
         // Connected panel setup (leave button on top, passphrase row below)
         connectedPanel.setLayout(new BoxLayout(connectedPanel, BoxLayout.Y_AXIS));
@@ -364,16 +379,22 @@ public class RaidPartyPanel extends PluginPanel {
     }
 
     public void addMember(String username, boolean isLocal) {
+        RaidPartyPlayerSync dummySync = new RaidPartyPlayerSync();
+        dummySync.setUsername(username);
+        addMember(dummySync, isLocal);
+    }
+
+    public void addMember(RaidPartyPlayerSync sync, boolean isLocal) {
         SwingUtilities.invokeLater(() -> {
+            String username = sync.getUsername();
+            if (username == null) return;
             String sanitized = username.toLowerCase().replace("\u00A0", " ");
-            if (memberCards.containsKey(sanitized))
+            if (memberCards.containsKey(sanitized)) {
+                memberCards.get(sanitized).updateSyncData(sync);
                 return;
+            }
 
-            // Dummy sync on creation
-            RaidPartyPlayerSync dummySync = new RaidPartyPlayerSync();
-            dummySync.setUsername(username);
-
-            RaidPartyPlayerCard card = new RaidPartyPlayerCard(plugin, username, false, dummySync);
+            RaidPartyPlayerCard card = new RaidPartyPlayerCard(plugin, username, isLocal, sync);
             card.setAlignmentX(Component.CENTER_ALIGNMENT);
             memberCards.put(sanitized, card);
 
@@ -405,7 +426,7 @@ public class RaidPartyPanel extends PluginPanel {
             if (card != null) {
                 card.updateSyncData(sync);
             } else {
-                addMember(sync.getUsername(), false);
+                addMember(sync, false);
             }
         });
     }
@@ -451,6 +472,26 @@ public class RaidPartyPanel extends PluginPanel {
             plugin.setLootRule(rule);
             parentRow.repaint();
         });
+        return btn;
+    }
+
+    private JButton createIconButton(String path, String tooltip, String url) {
+        JButton btn = new JButton();
+        try {
+            BufferedImage img = ImageUtil.loadImageResource(RaidPartyPlugin.class, path);
+            if (img != null) {
+                img = ImageUtil.resizeImage(img, 24, 24);
+                btn.setIcon(new ImageIcon(img));
+            }
+        } catch (Exception e) {}
+        
+        btn.setPreferredSize(new Dimension(32, 32));
+        btn.setToolTipText(tooltip);
+        btn.setFocusPainted(false);
+        btn.setBackground(new Color(35, 35, 35));
+        btn.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 60)));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.addActionListener(e -> LinkBrowser.browse(url));
         return btn;
     }
 

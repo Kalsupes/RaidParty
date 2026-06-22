@@ -13,11 +13,17 @@
 
 RaidParty is a RuneLite party plugin built for raid teams that want more visibility, faster communication, and better in-raid decision support. It expands the standard party experience with a dedicated team panel, shared player-state syncing, ready checks, loot-rule visibility, raid stat overlays, and a ping system designed for high-tempo PvM.
 
-The plugin is aimed at coordinated groups running content such as Tombs of Amascut, Chambers of Xeric, and Theatre of Blood, while remaining useful anywhere a party wants better shared awareness; such as in the wilderness.
+The plugin is aimed at coordinated groups running content such as Tombs of Amascut, Chambers of Xeric, and Theatre of Blood, and the future The Fractured Archives, while remaining useful anywhere a party wants better shared awareness; such as in the wilderness.
 
 ---
 
 ## Features
+
+### RuneWatch Compatible Evidence
+- Watermark embedded evidentiary screenshots
+- Automatic screenshot prints party roster and confirmed loot Preferences
+- Evidentiary screenshots for high-value or megarare drops across all raids
+- Stored in your screenshot folders; RaidStart and Drops
 
 ### Party Management
 - Create a new party or join an existing one with a passphrase
@@ -38,8 +44,8 @@ The plugin is aimed at coordinated groups running content such as Tombs of Amasc
 - Cleaner pre-raid coordination without relying on chat spam
 
 ### Ping System
-- **Safe**, **Caution**, and **Danger** pings
-- Configurable hotkeys, colors, and sound IDs
+- **Safe**, **Caution**, **Danger**, **Resource**, and **Object/Entity** pings
+- Configurable hotkeys, sounds, and colors; including colorblind mode!
 - Ground, NPC, object, and item-target awareness
 - Optional floating 3D text/icons for higher visibility in cluttered encounters
 
@@ -106,8 +112,8 @@ RaidParty includes configurable options for:
 - color blindness
 - 3D ping icon rendering
 - low-HP and critical-HP teammate glow effects
-- loot preference broadcasting
-- ready/not ready broadcasting
+- loot preference broadcasting/screenshots
+- ready/not ready broadcasting/screenshots
 - virtual level display
 
 This allows teams to keep the core workflow consistent while tailoring the visual and audio feedback to personal preference.
