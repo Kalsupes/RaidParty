@@ -41,6 +41,7 @@ import net.runelite.api.VarPlayer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserJoin;
 import net.runelite.client.party.events.UserPart;
@@ -56,8 +57,13 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Image;
+import java.awt.event.KeyEvent;
 import java.time.format.DateTimeFormatter;
 import java.time.ZoneId;
+import java.util.function.Supplier;
+import net.runelite.api.gameval.VarClientID;
+import net.runelite.client.config.Keybind;
+import net.runelite.api.widgets.Widget;
 
 @Slf4j
 @PluginDescriptor(name = "RaidParty", description = "A comprehensive party plugin for tracking raids, pings, low-HP warnings, and communication.", tags = {
@@ -69,6 +75,8 @@ import java.time.ZoneId;
  * https://github.com/TheStonedTurtle/party-panel
  */
 public class RaidPartyPlugin extends Plugin {
+    private static final String PRESS_ENTER_TO_CHAT = "Press Enter to Chat";
+
     @Inject
     private Client client;
 
@@ -325,35 +333,78 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     // --- PING SYSTEM HOOKS ---
-    private final HotkeyListener safePingHotkey = new HotkeyListener(() -> config.safePingHotkey()) {
+    private abstract class PingHotkeyListener extends HotkeyListener {
+        private PingHotkeyListener(Supplier<Keybind> keybind) {
+            super(keybind);
+        }
+
+        @Override
+        public void keyPressed(KeyEvent event) {
+            if (isTextInputActive()) {
+                return;
+            }
+
+            super.keyPressed(event);
+        }
+    }
+
+    private boolean isTextInputActive() {
+        if (client.getFocusedInputFieldWidget() != null) {
+            return true;
+        }
+
+        Widget chatboxInput = client.getWidget(InterfaceID.Chatbox.INPUT);
+        if (chatboxInput != null) {
+            String inputText = chatboxInput.getText();
+
+            // RuneLite's Key Remapping plugin locks chat by replacing this widget's
+            // text with "Press Enter to Chat...". Once Enter is pressed, the prompt
+            // disappears before CHATINPUT contains any text, so inspect the widget
+            // to avoid consuming the first character typed.
+            if (inputText == null || !inputText.contains(PRESS_ENTER_TO_CHAT)) {
+                return true;
+            }
+        }
+
+        // Covers chatbox prompts, private messages, searches, and RuneLite chatbox
+        // panels that accept keyboard input without using an INPUT_FIELD widget.
+        if (client.getVarcIntValue(VarClientID.MESLAYERMODE) != 0) {
+            return true;
+        }
+
+        String chatboxText = client.getVarcStrValue(VarClientID.CHATINPUT);
+        return chatboxText != null && !chatboxText.isEmpty();
+    }
+
+    private final HotkeyListener safePingHotkey = new PingHotkeyListener(() -> config.safePingHotkey()) {
         @Override
         public void hotkeyPressed() {
             executePing(0, false);
         }
     };
 
-    private final HotkeyListener cautionPingHotkey = new HotkeyListener(() -> config.cautionPingHotkey()) {
+    private final HotkeyListener cautionPingHotkey = new PingHotkeyListener(() -> config.cautionPingHotkey()) {
         @Override
         public void hotkeyPressed() {
             executePing(1, false);
         }
     };
 
-    private final HotkeyListener dangerPingHotkey = new HotkeyListener(() -> config.dangerPingHotkey()) {
+    private final HotkeyListener dangerPingHotkey = new PingHotkeyListener(() -> config.dangerPingHotkey()) {
         @Override
         public void hotkeyPressed() {
             executePing(2, false);
         }
     };
 
-    private final HotkeyListener resourcePingHotkey = new HotkeyListener(() -> config.resourcePingHotkey()) {
+    private final HotkeyListener resourcePingHotkey = new PingHotkeyListener(() -> config.resourcePingHotkey()) {
         @Override
         public void hotkeyPressed() {
             executePing(3, false);
         }
     };
 
-    private final HotkeyListener objectPingHotkey = new HotkeyListener(() -> config.objectPingHotkey()) {
+    private final HotkeyListener objectPingHotkey = new PingHotkeyListener(() -> config.objectPingHotkey()) {
         @Override
         public void hotkeyPressed() {
             executePing(0, true);
