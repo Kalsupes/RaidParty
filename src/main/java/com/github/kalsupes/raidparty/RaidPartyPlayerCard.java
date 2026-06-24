@@ -43,6 +43,7 @@ public class RaidPartyPlayerCard extends JPanel {
     private static final Color PRAYER_AQUA = new Color(50, 200, 220);
     private static final Color SPEC_YELLOW = new Color(220, 200, 50);
     private static final Color RUN_ORANGE = new Color(220, 160, 50);
+    private static final Color STAMINA_ORANGE = new Color(255, 140, 0);
     private static final Color CARD_BG = new Color(30, 32, 38, 220);
     private static final Color CHEVRON_COLOR = new Color(180, 180, 180);
 
@@ -509,20 +510,30 @@ public class RaidPartyPlayerCard extends JPanel {
             plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_SPECIAL_ICON, 0, img -> {
                 SwingUtilities.invokeLater(() -> {
                     JLabel iconLbl = (JLabel) specCell.getComponent(0);
-                    BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
-                    iconLbl.setIcon(new ImageIcon(resizedImg));
-                    iconLbl.setText(null);
+                    if (img != null) {
+                        BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
+                        iconLbl.setIcon(new ImageIcon(resizedImg));
+                        iconLbl.setText(null);
+                    }
                 });
             });
 
-            JPanel runCell = createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, RUN_ORANGE);
+            boolean hasStamina = syncData.getStamina() > 0;
+            JPanel runCell = createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, hasStamina ? STAMINA_ORANGE : RUN_ORANGE);
             statsRow.add(runCell);
-            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON, 0, img -> {
+            
+            int runSpriteId = hasStamina 
+                    ? net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON_SLOWED_DEPLETION 
+                    : net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON;
+
+            plugin.getSpriteManager().getSpriteAsync(runSpriteId, 0, img -> {
                 SwingUtilities.invokeLater(() -> {
                     JLabel iconLbl = (JLabel) runCell.getComponent(0);
-                    BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
-                    iconLbl.setIcon(new ImageIcon(resizedImg));
-                    iconLbl.setText(null);
+                    if (img != null) {
+                        BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
+                        iconLbl.setIcon(new ImageIcon(resizedImg));
+                        iconLbl.setText(null);
+                    }
                 });
             });
 

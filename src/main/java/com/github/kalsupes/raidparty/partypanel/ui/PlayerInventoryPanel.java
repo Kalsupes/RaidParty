@@ -168,19 +168,36 @@ public class PlayerInventoryPanel extends JPanel
 		switch (itemId) {
 			case 13576: // Dragon Warhammer
 			case 20785: // Dragon Warhammer (cr)
+			case 28035: // Dragon Warhammer (cr)
+			case 26710: // Dragon Warhammer (or)
 			case 11804: // Bandos Godsword
 			case 20370: // Bandos Godsword (or)
+			case 20782: // Bandos Godsword (or 2)
+			case 21060: // Bandos Godsword (or 3)
 			case 21003: // Elder Maul
 			case 21205: // Elder Maul (or)
+			case 27100: // Elder Maul (or 2)
+			case 22622: // Statius's warhammer
+			case 23620: // Statius's warhammer (c)
+			case 27908: // Statius's warhammer (bh)
 			case 8872:  // Bone dagger
 			case 8874:  // Bone dagger (p)
 			case 8876:  // Bone dagger (p+)
 			case 8878:  // Bone dagger (p++)
+			case 8880:  // Dorgeshuun crossbow
 			case 27665: // Accursed sceptre
-			case 27662: // Accursed sceptre (a)
+			case 27662: // Accursed sceptre (u)
+			case 27679: // Accursed sceptre (a)
+			case 27676: // Accursed sceptre (au)
+			case 25492: // Shadow ancient sceptre
+			case 28476: // Shadow ancient sceptre (l)
 			case 19675: // Arclight
 			case 29553: // Emberlight
 			case 6746:  // Darklight
+			case 10887: // Barrelchest anchor
+			case 27855: // Barrelchest anchor (bh)
+			case 28922: // Tonalztics of ralos
+			case 28919: // Tonalztics of ralos (uncharged)
 				return true;
 			default:
 				return false;

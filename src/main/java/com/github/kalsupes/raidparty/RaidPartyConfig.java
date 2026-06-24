@@ -5,6 +5,7 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
+import net.runelite.client.config.ModifierlessKeybind;
 
 @ConfigGroup("raidparty")
 public interface RaidPartyConfig extends Config {
@@ -23,6 +24,9 @@ public interface RaidPartyConfig extends Config {
 
     @ConfigSection(name = "Team UI", description = "Configure 3D team tracking and visual warnings", position = 4, closedByDefault = false)
     String teamSection = "teamSection";
+
+    @ConfigSection(name = "Status Overlay", description = "Configure the 3D floating text numbers for party members", position = 5, closedByDefault = false)
+    String statusOverlaySection = "statusOverlaySection";
 
     // ================= COLOR BLINDNESS =================
     @ConfigItem(keyName = "colorblindMode", name = "Colorblind Mode", description = "Automatically adjusts ping and outline colors for colorblindness", position = 1, section = colorblindSection)
@@ -43,6 +47,13 @@ public interface RaidPartyConfig extends Config {
         return false;
     }
 
+    @net.runelite.client.config.Range(min = 0, max = 100)
+    @net.runelite.client.config.Units(net.runelite.client.config.Units.PERCENT)
+    @ConfigItem(keyName = "pingVolume", name = "Ping Volume", description = "Adjust the volume of incoming pings", position = 1, section = pingSection)
+    default int pingVolume() {
+        return 100;
+    }
+
     @ConfigItem(keyName = "mutedPingUsers", name = "Muted Ping Users (Comma Separated)", description = "", position = 99, hidden = true)
     default String mutedPingUsers() {
         return "";
@@ -50,8 +61,8 @@ public interface RaidPartyConfig extends Config {
 
     // --- Safe ---
     @ConfigItem(keyName = "safePingHotkey", name = "Safe Ping Hotkey", description = "Hotkey to drop a Safe (Green) Ping", position = 1, section = pingSection)
-    default Keybind safePingHotkey() {
-        return Keybind.NOT_SET;
+    default ModifierlessKeybind safePingHotkey() {
+        return new ModifierlessKeybind(java.awt.event.KeyEvent.VK_UNDEFINED, 0);
     }
 
     @ConfigItem(keyName = "safePingColor", name = "Safe Ping Color", description = "Color of the Safe Ping ground marker", position = 2, section = pingSection)
@@ -66,8 +77,8 @@ public interface RaidPartyConfig extends Config {
 
     // --- Caution ---
     @ConfigItem(keyName = "cautionPingHotkey", name = "Caution Ping Hotkey", description = "Hotkey to drop a Caution (Yellow) Ping", position = 4, section = pingSection)
-    default Keybind cautionPingHotkey() {
-        return Keybind.NOT_SET;
+    default ModifierlessKeybind cautionPingHotkey() {
+        return new ModifierlessKeybind(java.awt.event.KeyEvent.VK_UNDEFINED, 0);
     }
 
     @ConfigItem(keyName = "cautionPingColor", name = "Caution Ping Color", description = "Color of the Caution Ping ground marker", position = 5, section = pingSection)
@@ -82,8 +93,8 @@ public interface RaidPartyConfig extends Config {
 
     // --- Danger ---
     @ConfigItem(keyName = "dangerPingHotkey", name = "Danger Ping Hotkey", description = "Hotkey to drop a Danger (Red) Ping", position = 7, section = pingSection)
-    default Keybind dangerPingHotkey() {
-        return Keybind.NOT_SET;
+    default ModifierlessKeybind dangerPingHotkey() {
+        return new ModifierlessKeybind(java.awt.event.KeyEvent.VK_UNDEFINED, 0);
     }
 
     @ConfigItem(keyName = "dangerPingColor", name = "Danger Ping Color", description = "Color of the Danger Ping ground marker", position = 8, section = pingSection)
@@ -98,8 +109,8 @@ public interface RaidPartyConfig extends Config {
 
     // --- Resource ---
     @ConfigItem(keyName = "resourcePingHotkey", name = "Resource Ping Hotkey", description = "Hotkey to drop a Resource (Blue) Ping", position = 10, section = pingSection)
-    default Keybind resourcePingHotkey() {
-        return Keybind.NOT_SET;
+    default ModifierlessKeybind resourcePingHotkey() {
+        return new ModifierlessKeybind(java.awt.event.KeyEvent.VK_UNDEFINED, 0);
     }
 
     @ConfigItem(keyName = "resourcePingColor", name = "Resource Ping Color", description = "Color of the Resource Ping ground marker", position = 11, section = pingSection)
@@ -114,8 +125,8 @@ public interface RaidPartyConfig extends Config {
 
     // --- Entity/Object/Item ---
     @ConfigItem(keyName = "objectPingHotkey", name = "Object/Entity Hotkey", description = "Hotkey to ping Objects, NPCs, and Items", position = 13, section = pingSection)
-    default Keybind objectPingHotkey() {
-        return Keybind.NOT_SET;
+    default ModifierlessKeybind objectPingHotkey() {
+        return new ModifierlessKeybind(java.awt.event.KeyEvent.VK_UNDEFINED, 0);
     }
 
     @ConfigItem(keyName = "entityPingColor", name = "Entity Ping Color", description = "Color of the NPC highlight", position = 14, section = pingSection)
@@ -160,12 +171,17 @@ public interface RaidPartyConfig extends Config {
     }
 
     // ================= EVIDENCE & SCREENSHOTS =================
-    @ConfigItem(keyName = "takeRaidStartScreenshot", name = "Auto-Screenshot Raid Start", description = "Take a screenshot and dump rules in chat when entering a raid", position = 1, section = evidenceSection)
+    @ConfigItem(keyName = "printRaidStartRules", name = "Print Raid Start Rules", description = "Print party members' agreed Loot Rules into chat when a raid starts", position = 1, section = evidenceSection)
+    default boolean printRaidStartRules() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "takeRaidStartScreenshot", name = "Auto-Screenshot Raid Start", description = "Take a screenshot of the chatbox when entering a raid", position = 2, section = evidenceSection)
     default boolean takeRaidStartScreenshot() {
         return true;
     }
 
-    @ConfigItem(keyName = "takeDropScreenshot", name = "Auto-Screenshot Drops", description = "Take a screenshot when a Megarare drops", position = 2, section = evidenceSection)
+    @ConfigItem(keyName = "takeDropScreenshot", name = "Auto-Screenshot Drops", description = "Take a screenshot when a Megarare drops", position = 3, section = evidenceSection)
     default boolean takeDropScreenshot() {
         return true;
     }
@@ -205,4 +221,34 @@ public interface RaidPartyConfig extends Config {
         return java.awt.Color.decode("#FF0000");
     }
 
+    // ================= STATUS OVERLAY =================
+    @ConfigItem(keyName = "statusOverlayHealth", name = "Show Health", description = "Show health on the status overlay", position = 0, section = statusOverlaySection)
+    default boolean statusOverlayHealth() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "statusOverlayPrayer", name = "Show Prayer", description = "Show prayer on the status overlay", position = 1, section = statusOverlaySection)
+    default boolean statusOverlayPrayer() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "statusOverlayStamina", name = "Show Run Energy", description = "Show run energy on the status overlay", position = 2, section = statusOverlaySection)
+    default boolean statusOverlayStamina() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "statusOverlaySpec", name = "Show Spec Energy", description = "Show spec energy on the status overlay", position = 3, section = statusOverlaySection)
+    default boolean statusOverlaySpec() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "statusOverlayVeng", name = "Show Vengeance", description = "Show vengeance on the status overlay", position = 4, section = statusOverlaySection)
+    default boolean statusOverlayVeng() {
+        return false;
+    }
+
+    @ConfigItem(keyName = "statusOverlayRenderSelf", name = "Show on Self", description = "Show the status overlay on your own local player", position = 5, section = statusOverlaySection)
+    default boolean statusOverlayRenderSelf() {
+        return false;
+    }
 }

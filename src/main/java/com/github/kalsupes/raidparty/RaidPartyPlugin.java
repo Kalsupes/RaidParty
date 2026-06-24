@@ -123,6 +123,9 @@ public class RaidPartyPlugin extends Plugin {
     @Inject
     private RaidPartyOverlay raidpartyOverlay;
 
+    @Inject
+    private RaidPartyStatusOverlay statusOverlay;
+
     private int previousRegionId = -1;
     private final int[] lobbyRegions = {12596, 12889, 13118, 13114, 14642, 12613, 13454, 14160, 14648};
 
@@ -215,8 +218,8 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(RaidPartyPlayerSync.class);
             wsClient.registerMessage(RaidPartyPartyMessage.class);
             wsClient.registerMessage(BossPingMessage.class);
-
             overlayManager.add(raidpartyOverlay);
+            overlayManager.add(statusOverlay);
 
             lastLogout = Instant.now();
         } catch (Exception e) {
@@ -244,6 +247,7 @@ public class RaidPartyPlugin extends Plugin {
         clientToolbar.removeNavigation(navButton);
         addedButton = false;
         overlayManager.remove(raidpartyOverlay);
+        overlayManager.remove(statusOverlay);
         keyManager.unregisterKeyListener(safePingHotkey);
         keyManager.unregisterKeyListener(cautionPingHotkey);
         keyManager.unregisterKeyListener(dangerPingHotkey);
@@ -599,7 +603,8 @@ public class RaidPartyPlugin extends Plugin {
 
         if (soundId != -1) {
             final int sid = soundId;
-            clientThread.invokeLater(() -> client.playSoundEffect(sid));
+            final int volume = (int) (127 * (config.pingVolume() / 100.0f));
+            clientThread.invokeLater(() -> client.playSoundEffect(sid, volume));
         }
     }
 
@@ -788,11 +793,11 @@ public class RaidPartyPlugin extends Plugin {
         sync.setSkillXps(gatherSkillXps());
         sync.setLootRule(localLootRule);
 
-        // New fields: stamina, poison, disease, total level
         sync.setStamina(client.getVarbitValue(Varbits.STAMINA_EFFECT));
         sync.setPoison(client.getVarpValue(VarPlayer.POISON));
         sync.setDisease(client.getVarpValue(VarPlayer.DISEASE_VALUE));
         sync.setTotalLevel(client.getTotalLevel());
+        sync.setVengeanceActive(client.getVarbitValue(Varbits.VENGEANCE_ACTIVE) == 1);
 
         // Rune Pouch
         gatherRunePouchContents(sync);
@@ -882,7 +887,7 @@ public class RaidPartyPlugin extends Plugin {
 
             if (wasInLobby && !isNowInLobby && partyService != null && partyService.isInParty()) {
                 resetReadyState();
-                if (config.takeRaidStartScreenshot()) {
+                if (config.printRaidStartRules() || config.takeRaidStartScreenshot()) {
                     triggerRaidStartEvidence();
                 }
             }
@@ -1269,13 +1274,15 @@ public class RaidPartyPlugin extends Plugin {
         }
 
         if (event.getType() != net.runelite.api.ChatMessageType.GAMEMESSAGE &&
-            event.getType() != net.runelite.api.ChatMessageType.FRIENDSCHAT &&
             event.getType() != net.runelite.api.ChatMessageType.FRIENDSCHATNOTIFICATION &&
-            event.getType() != net.runelite.api.ChatMessageType.CLAN_CHAT &&
             event.getType() != net.runelite.api.ChatMessageType.CLAN_MESSAGE &&
-            event.getType() != net.runelite.api.ChatMessageType.CLAN_GUEST_CHAT &&
             event.getType() != net.runelite.api.ChatMessageType.CLAN_GUEST_MESSAGE &&
             event.getType() != net.runelite.api.ChatMessageType.BROADCAST) {
+            return;
+        }
+
+        // Prevent player-spoofed chat messages
+        if (event.getName() != null && !event.getName().isEmpty()) {
             return;
         }
 
@@ -1495,10 +1502,14 @@ public class RaidPartyPlugin extends Plugin {
             sb.append("<col=ff5555>None</col>");
         }
 
-        postPartyChat(sb.toString());
+        if (config.printRaidStartRules()) {
+            postPartyChat(sb.toString());
+        }
 
-        // Delay screenshot by 6 game ticks (~3.6 seconds) to ensure black loading screen fades
-        evidenceScreenshotTicks = 6;
+        if (config.takeRaidStartScreenshot()) {
+            // Delay screenshot by 6 game ticks (~3.6 seconds) to ensure black loading screen fades
+            evidenceScreenshotTicks = 6;
+        }
     }
 
     private void takeEvidenceScreenshot(String subDir) {

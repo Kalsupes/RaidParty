@@ -56,6 +56,7 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     private int poison; // VarPlayer.POISON
     private int disease; // VarPlayer.DISEASE_VALUE
     private int totalLevel; // client.getTotalLevel()
+    private boolean vengeanceActive;
 
     // Rune Pouch contents (parallel arrays)
     private int[] runePouchIds;
