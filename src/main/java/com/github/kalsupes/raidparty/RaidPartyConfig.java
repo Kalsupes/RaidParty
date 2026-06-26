@@ -28,6 +28,9 @@ public interface RaidPartyConfig extends Config {
     @ConfigSection(name = "Status Overlay", description = "Configure the 3D floating text numbers for party members", position = 5, closedByDefault = false)
     String statusOverlaySection = "statusOverlaySection";
 
+    @ConfigSection(name = "Minimap Tracking", description = "Draw party members on the game Minimap", position = 6, closedByDefault = false)
+    String minimapSection = "minimapSection";
+
     // ================= COLOR BLINDNESS =================
     @ConfigItem(keyName = "colorblindMode", name = "Colorblind Mode", description = "Automatically adjusts ping and outline colors for colorblindness", position = 1, section = colorblindSection)
     default ColorblindMode colorblindMode() {
@@ -221,6 +224,16 @@ public interface RaidPartyConfig extends Config {
         return java.awt.Color.decode("#FF0000");
     }
 
+    @ConfigItem(keyName = "drawOverheadNames", name = "Show Overhead Names", description = "Draw party member usernames floating above their character models in 3D", position = 6, section = teamSection)
+    default boolean drawOverheadNames() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "suppressOverheadForFriends", name = "Ignore Friends & Clan", description = "Do not draw overhead names for players on your friends list or clan chat to prevent overlapping with Player Indicators", position = 7, section = teamSection)
+    default boolean suppressOverheadForFriends() {
+        return true;
+    }
+
     // ================= STATUS OVERLAY =================
     @ConfigItem(keyName = "statusOverlayHealth", name = "Show Health", description = "Show health on the status overlay", position = 0, section = statusOverlaySection)
     default boolean statusOverlayHealth() {
@@ -250,5 +263,21 @@ public interface RaidPartyConfig extends Config {
     @ConfigItem(keyName = "statusOverlayRenderSelf", name = "Show on Self", description = "Show the status overlay on your own local player", position = 5, section = statusOverlaySection)
     default boolean statusOverlayRenderSelf() {
         return false;
+    }
+
+    // ================= MINIMAP TRACKING =================
+    @ConfigItem(keyName = "drawMinimap", name = "Enable Minimap Tracking", description = "Draw party members on the game minimap", position = 0, section = minimapSection)
+    default boolean drawMinimap() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "drawMinimapNames", name = "Show Minimap Names", description = "Draw usernames next to party member minimap dots", position = 1, section = minimapSection)
+    default boolean drawMinimapNames() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "drawMinimapDots", name = "Highlight Minimap Dots", description = "Draw colored highlight dots over party members on the minimap", position = 2, section = minimapSection)
+    default boolean drawMinimapDots() {
+        return true;
     }
 }

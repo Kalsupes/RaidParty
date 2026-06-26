@@ -41,6 +41,7 @@ import net.runelite.api.VarPlayer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserJoin;
@@ -126,8 +127,11 @@ public class RaidPartyPlugin extends Plugin {
     @Inject
     private RaidPartyStatusOverlay statusOverlay;
 
-    private int previousRegionId = -1;
-    private final int[] lobbyRegions = {12596, 12889, 13118, 13114, 14642, 12613, 13454, 14160, 14648};
+    @Inject
+    private RaidPartyMinimapOverlay minimapOverlay;
+
+    private boolean wasInRaid = false;
+    private int reconcileTimer = 0;
 
 
 
@@ -220,6 +224,7 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(BossPingMessage.class);
             overlayManager.add(raidpartyOverlay);
             overlayManager.add(statusOverlay);
+            overlayManager.add(minimapOverlay);
 
             lastLogout = Instant.now();
         } catch (Exception e) {
@@ -248,6 +253,7 @@ public class RaidPartyPlugin extends Plugin {
         addedButton = false;
         overlayManager.remove(raidpartyOverlay);
         overlayManager.remove(statusOverlay);
+        overlayManager.remove(minimapOverlay);
         keyManager.unregisterKeyListener(safePingHotkey);
         keyManager.unregisterKeyListener(cautionPingHotkey);
         keyManager.unregisterKeyListener(dangerPingHotkey);
@@ -303,6 +309,21 @@ public class RaidPartyPlugin extends Plugin {
         partyService.changeParty(null);
         panel.updateConnectionState(false, "");
         partyData.clear();
+        memberHeartbeats.clear();
+        activePings.clear();
+        if (panel != null) {
+            panel.removeAllMembers();
+        }
+    }
+
+    @Subscribe
+    public void onPartyChanged(net.runelite.client.events.PartyChanged event) {
+        partyData.clear();
+        memberHeartbeats.clear();
+        activePings.clear();
+        if (panel != null) {
+            panel.removeAllMembers();
+        }
     }
 
     @Subscribe
@@ -324,8 +345,11 @@ public class RaidPartyPlugin extends Plugin {
     @Subscribe
     public void onUserPart(UserPart event) {
         RaidPartyPlayerSync sync = partyData.remove(event.getMemberId());
-        if (sync != null && sync.getUsername() != null) {
-            panel.removeMember(sync.getUsername());
+        if (panel != null) {
+            panel.removeMemberById(event.getMemberId());
+            if (sync != null && sync.getUsername() != null) {
+                panel.removeMember(sync.getUsername());
+            }
         }
     }
 
@@ -344,7 +368,7 @@ public class RaidPartyPlugin extends Plugin {
 
         @Override
         public void keyPressed(KeyEvent event) {
-            if (isTextInputActive()) {
+            if (isTextInputActive(event)) {
                 return;
             }
 
@@ -352,7 +376,15 @@ public class RaidPartyPlugin extends Plugin {
         }
     }
 
-    private boolean isTextInputActive() {
+    private boolean isTextInputActive(KeyEvent event) {
+        int code = event.getKeyCode();
+        if ((code >= KeyEvent.VK_F1 && code <= KeyEvent.VK_F24) || code == KeyEvent.VK_TAB || code == KeyEvent.VK_ESCAPE
+                || code == KeyEvent.VK_INSERT || code == KeyEvent.VK_DELETE || code == KeyEvent.VK_HOME || code == KeyEvent.VK_END
+                || code == KeyEvent.VK_PAGE_UP || code == KeyEvent.VK_PAGE_DOWN || code == KeyEvent.VK_CONTROL
+                || code == KeyEvent.VK_SHIFT || code == KeyEvent.VK_ALT) {
+            return false;
+        }
+
         if (client.getFocusedInputFieldWidget() != null) {
             return true;
         }
@@ -360,18 +392,11 @@ public class RaidPartyPlugin extends Plugin {
         Widget chatboxInput = client.getWidget(InterfaceID.Chatbox.INPUT);
         if (chatboxInput != null) {
             String inputText = chatboxInput.getText();
-
-            // RuneLite's Key Remapping plugin locks chat by replacing this widget's
-            // text with "Press Enter to Chat...". Once Enter is pressed, the prompt
-            // disappears before CHATINPUT contains any text, so inspect the widget
-            // to avoid consuming the first character typed.
-            if (inputText == null || !inputText.contains(PRESS_ENTER_TO_CHAT)) {
-                return true;
+            if (inputText != null && inputText.contains(PRESS_ENTER_TO_CHAT)) {
+                return false;
             }
         }
 
-        // Covers chatbox prompts, private messages, searches, and RuneLite chatbox
-        // panels that accept keyboard input without using an INPUT_FIELD widget.
         if (client.getVarcIntValue(VarClientID.MESLAYERMODE) != 0) {
             return true;
         }
@@ -603,8 +628,14 @@ public class RaidPartyPlugin extends Plugin {
 
         if (soundId != -1) {
             final int sid = soundId;
-            final int volume = (int) (127 * (config.pingVolume() / 100.0f));
-            clientThread.invokeLater(() -> client.playSoundEffect(sid, volume));
+            final int targetVol = (int) (127 * (config.pingVolume() / 100.0f));
+            clientThread.invokeLater(() -> {
+                net.runelite.api.Preferences preferences = client.getPreferences();
+                int previousVolume = preferences.getSoundEffectVolume();
+                preferences.setSoundEffectVolume(targetVol);
+                client.playSoundEffect(sid, targetVol);
+                preferences.setSoundEffectVolume(previousVolume);
+            });
         }
     }
 
@@ -717,8 +748,10 @@ public class RaidPartyPlugin extends Plugin {
     // --- LIVE PARTY SYNC LOGIC ---
     private int localHp, localMaxHp, localPrayer, localMaxPrayer, localSpec, localRun;
     private int localCombatLevel = -1;
-    private Item[] localEquipment = new Item[0];
-    private Item[] localInventory = new Item[0];
+    private long localActivePrayers = -1L;
+    private int localPouchHash = -1;
+    private int keepaliveTicks = 0;
+    private final Map<Long, Integer> memberHeartbeats = new HashMap<>();
     private boolean needsPartySync = false;
     private int partySyncTimer = 0;
     private int evidenceScreenshotTicks = -1;
@@ -829,14 +862,13 @@ public class RaidPartyPlugin extends Plugin {
         if (!partyService.isInParty())
             return;
         Skill s = event.getSkill();
-        if (s == Skill.HITPOINTS) {
-            localHp = event.getLevel();
+        if (s == Skill.HITPOINTS || s == Skill.PRAYER) {
+            localHp = client.getBoostedSkillLevel(Skill.HITPOINTS);
             localMaxHp = client.getRealSkillLevel(Skill.HITPOINTS);
-            needsPartySync = true;
-        } else if (s == Skill.PRAYER) {
-            localPrayer = event.getLevel();
+            localPrayer = client.getBoostedSkillLevel(Skill.PRAYER);
             localMaxPrayer = client.getRealSkillLevel(Skill.PRAYER);
             needsPartySync = true;
+            partySyncTimer = 0;
         }
     }
 
@@ -845,12 +877,21 @@ public class RaidPartyPlugin extends Plugin {
         if (!partyService.isInParty())
             return;
         int id = event.getContainerId();
-        if (id == InventoryID.INVENTORY.getId()) {
-            localInventory = event.getItemContainer().getItems();
+        if (id == InventoryID.INVENTORY.getId() || id == InventoryID.EQUIPMENT.getId()) {
             needsPartySync = true;
-        } else if (id == InventoryID.EQUIPMENT.getId()) {
-            localEquipment = event.getItemContainer().getItems();
+            partySyncTimer = 0;
+        }
+    }
+
+    @Subscribe
+    public void onVarbitChanged(VarbitChanged event) {
+        if (partyService == null || !partyService.isInParty() || client.getLocalPlayer() == null)
+            return;
+        long activePrays = gatherActivePrayers();
+        if (activePrays != localActivePrayers) {
+            localActivePrayers = activePrays;
             needsPartySync = true;
+            partySyncTimer = 0;
         }
     }
 
@@ -864,37 +905,58 @@ public class RaidPartyPlugin extends Plugin {
             }
         }
 
-        int currentRegionId = client.getLocalPlayer() != null && client.getLocalPlayer().getWorldLocation() != null
-                ? client.getLocalPlayer().getWorldLocation().getRegionID()
-                : -1;
-
-        if (currentRegionId != -1 && previousRegionId != -1 && currentRegionId != previousRegionId) {
-            boolean wasInLobby = false;
-            for (int r : lobbyRegions) {
-                if (previousRegionId == r) {
-                    wasInLobby = true;
-                    break;
-                }
-            }
-
-            boolean isNowInLobby = false;
-            for (int r : lobbyRegions) {
-                if (currentRegionId == r) {
-                    isNowInLobby = true;
-                    break;
-                }
-            }
-
-            if (wasInLobby && !isNowInLobby && partyService != null && partyService.isInParty()) {
-                resetReadyState();
-                if (config.printRaidStartRules() || config.takeRaidStartScreenshot()) {
-                    triggerRaidStartEvidence();
-                }
+        boolean inRaidNow = isPlayerInRaid();
+        if (!wasInRaid && inRaidNow && partyService != null && partyService.isInParty()) {
+            resetReadyState();
+            if (config.printRaidStartRules() || config.takeRaidStartScreenshot()) {
+                triggerRaidStartEvidence();
             }
         }
+        wasInRaid = inRaidNow;
 
-        if (currentRegionId != -1) {
-            previousRegionId = currentRegionId;
+        reconcileTimer++;
+        if (reconcileTimer >= 10 && partyService != null && partyService.isInParty()) {
+            reconcileTimer = 0;
+            java.util.Set<Long> activeIds = new java.util.HashSet<>();
+            if (partyService.getLocalMember() != null) {
+                activeIds.add(partyService.getLocalMember().getMemberId());
+            }
+            int nowTicks = client != null ? client.getTickCount() : 0;
+            for (net.runelite.client.party.PartyMember pm : partyService.getMembers()) {
+                long mId = pm.getMemberId();
+                Integer lastSeen = memberHeartbeats.get(mId);
+                // If remote member hasn't sent a sync packet in 35 ticks (~21 seconds), time them out!
+                if (lastSeen != null && nowTicks - lastSeen > 35) {
+                    continue;
+                }
+                activeIds.add(mId);
+            }
+
+            java.util.List<Long> ghostIds = new java.util.ArrayList<>();
+            for (Long memberId : new java.util.HashSet<>(partyData.keySet())) {
+                if (!activeIds.contains(memberId)) {
+                    ghostIds.add(memberId);
+                }
+            }
+
+            for (Long ghostId : ghostIds) {
+                RaidPartyPlayerSync ghostSync = partyData.remove(ghostId);
+                memberHeartbeats.remove(ghostId);
+                if (panel != null) {
+                    panel.removeMemberById(ghostId);
+                    if (ghostSync != null && ghostSync.getUsername() != null) {
+                        panel.removeMember(ghostSync.getUsername());
+                    }
+                }
+            }
+
+            java.util.Set<String> validUsernames = new java.util.HashSet<>();
+            String locName = getLocalPlayerName();
+            if (locName != null) validUsernames.add(locName.toLowerCase().replace("\u00A0", " "));
+            for (RaidPartyPlayerSync s : partyData.values()) {
+                if (s.getUsername() != null) validUsernames.add(s.getUsername().toLowerCase().replace("\u00A0", " "));
+            }
+            if (panel != null) panel.reconcileMembers(validUsernames);
         }
 
         updateCachedLocalSync();
@@ -917,27 +979,42 @@ public class RaidPartyPlugin extends Plugin {
             int run = client.getEnergy();
             int spec = client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT);
             int combat = client.getLocalPlayer().getCombatLevel();
-            
-            if (run != localRun || spec != localSpec || combat != localCombatLevel) {
-                localRun = run;
-                localSpec = spec;
-                localCombatLevel = combat;
+            int pouchHash = Arrays.hashCode(cachedLocalSync.getRunePouchIds()) * 31 + Arrays.hashCode(cachedLocalSync.getRunePouchQtys());
+
+            if (partySyncTimer > 0)
+                partySyncTimer--;
+
+            keepaliveTicks++;
+            if (keepaliveTicks >= 15) { // Force heartbeat keepalive broadcast every 15 ticks (9 seconds)
+                keepaliveTicks = 0;
                 needsPartySync = true;
             }
 
-            // Dynamic tick frequency: scale with party size
-            int syncFreq = Math.max(2, partyData.size() - 4);
-            if (needsPartySync) {
-                if (partySyncTimer > 0)
-                    partySyncTimer--;
-                else {
-                    sendPartySyncMessage();
-                    needsPartySync = false;
-                    partySyncTimer = syncFreq;
-                }
+            long activePrays = cachedLocalSync != null ? cachedLocalSync.getActivePrayers() : gatherActivePrayers();
+            boolean urgent = (activePrays != localActivePrayers);
+            if (urgent) {
+                localActivePrayers = activePrays;
+                needsPartySync = true;
+                partySyncTimer = 0;
+            }
+
+            if (run != localRun || spec != localSpec || combat != localCombatLevel || pouchHash != localPouchHash) {
+                localRun = run;
+                localSpec = spec;
+                localCombatLevel = combat;
+                localPouchHash = pouchHash;
+                needsPartySync = true;
+                partySyncTimer = 0;
+            }
+
+            if (needsPartySync && partySyncTimer == 0) {
+                sendPartySyncMessage();
+                needsPartySync = false;
+                partySyncTimer = 1;
             }
         } else {
             partyData.clear();
+            memberHeartbeats.clear();
         }
     }
 
@@ -1044,36 +1121,134 @@ public class RaidPartyPlugin extends Plugin {
         }
     }
 
-    private int gatherActivePrayers() {
-        int packed = 0;
+    private long gatherActivePrayers() {
+        long packed = 0L;
         for (net.runelite.api.Prayer p : net.runelite.api.Prayer.values()) {
             try {
                 if (client.isPrayerActive(p)) {
-                    packed |= (1 << p.ordinal());
+                    packed |= (1L << p.ordinal());
                 }
             } catch (Exception ignored) {
             }
         }
 
-        // Deadeye and Mystic Vigour use the same slot/varbit as Eagle Eye / Mystic Might in OSRS.
-        // We must manually strip out the lower-tier prayers if the higher-tier ones are active.
-        if ((packed & (1 << net.runelite.api.Prayer.DEADEYE.ordinal())) != 0) {
-            packed &= ~(1 << net.runelite.api.Prayer.EAGLE_EYE.ordinal());
+        boolean rangeActive = false;
+        try { rangeActive = client.isPrayerActive(net.runelite.api.Prayer.EAGLE_EYE) || client.isPrayerActive(net.runelite.api.Prayer.DEADEYE); } catch (Exception ignored) {}
+        boolean hasRangeScroll = isDeadeyeUnlocked();
+
+        if (rangeActive) {
+            if (hasRangeScroll) {
+                packed |= (1L << net.runelite.api.Prayer.EAGLE_EYE.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.DEADEYE.ordinal());
+            } else {
+                packed |= (1L << net.runelite.api.Prayer.DEADEYE.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.EAGLE_EYE.ordinal());
+            }
+        } else {
+            packed &= ~(1L << net.runelite.api.Prayer.EAGLE_EYE.ordinal());
+            packed &= ~(1L << net.runelite.api.Prayer.DEADEYE.ordinal());
         }
-        if ((packed & (1 << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0) {
-            packed &= ~(1 << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal());
+
+        boolean magicActive = false;
+        try { magicActive = client.isPrayerActive(net.runelite.api.Prayer.MYSTIC_MIGHT) || client.isPrayerActive(net.runelite.api.Prayer.MYSTIC_VIGOUR); } catch (Exception ignored) {}
+        boolean hasMagicScroll = isMysticVigourUnlocked();
+
+        if (magicActive) {
+            if (hasMagicScroll) {
+                packed |= (1L << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal());
+            } else {
+                packed |= (1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal());
+            }
+        } else {
+            packed &= ~(1L << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal());
+            packed &= ~(1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal());
         }
 
         return packed;
     }
 
-    private int gatherAvailablePrayers() {
-        int packed = 0;
+    private boolean checkWidgetTreeContainsSprite(net.runelite.api.widgets.Widget widget, int s1, int s2) {
+        if (widget == null) return false;
+        try {
+            int sid = widget.getSpriteId();
+            if (sid == s1 || sid == s2) return true;
+        } catch (Exception ignored) {}
+        try {
+            net.runelite.api.widgets.Widget[] children = widget.getChildren();
+            if (children != null) {
+                for (net.runelite.api.widgets.Widget child : children) {
+                    if (checkWidgetTreeContainsSprite(child, s1, s2)) return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        try {
+            net.runelite.api.widgets.Widget[] staticChildren = widget.getStaticChildren();
+            if (staticChildren != null) {
+                for (net.runelite.api.widgets.Widget child : staticChildren) {
+                    if (checkWidgetTreeContainsSprite(child, s1, s2)) return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        try {
+            net.runelite.api.widgets.Widget[] dynamicChildren = widget.getDynamicChildren();
+            if (dynamicChildren != null) {
+                for (net.runelite.api.widgets.Widget child : dynamicChildren) {
+                    if (checkWidgetTreeContainsSprite(child, s1, s2)) return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        try {
+            net.runelite.api.widgets.Widget[] nestedChildren = widget.getNestedChildren();
+            if (nestedChildren != null) {
+                for (net.runelite.api.widgets.Widget child : nestedChildren) {
+                    if (checkWidgetTreeContainsSprite(child, s1, s2)) return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private boolean isDeadeyeUnlocked() {
+        try {
+            if (client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) != 0 || client.getVarbitValue(16090) != 0) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+        try {
+            for (int i = 0; i < 50; i++) {
+                if (checkWidgetTreeContainsSprite(client.getWidget(541, i), 1422, 1426)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private boolean isMysticVigourUnlocked() {
+        try {
+            if (client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) != 0 || client.getVarbitValue(16091) != 0) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+        try {
+            for (int i = 0; i < 50; i++) {
+                if (checkWidgetTreeContainsSprite(client.getWidget(541, i), 1423, 1427)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private long gatherAvailablePrayers() {
+        long packed = 0L;
         for (net.runelite.api.Prayer p : net.runelite.api.Prayer.values()) {
             try {
                 // A prayer is "available" if the player has the required prayer level
                 if (client.getRealSkillLevel(Skill.PRAYER) >= getPrayerLevelRequirement(p)) {
-                    packed |= (1 << p.ordinal());
+                    packed |= (1L << p.ordinal());
                 }
             } catch (Exception ignored) {
             }
@@ -1081,8 +1256,8 @@ public class RaidPartyPlugin extends Plugin {
         return packed;
     }
 
-    private int gatherUnlockedPrayers() {
-        int packed = 0;
+    private long gatherUnlockedPrayers() {
+        long packed = 0L;
         for (net.runelite.api.Prayer p : net.runelite.api.Prayer.values()) {
             try {
                 boolean unlocked = true;
@@ -1101,23 +1276,17 @@ public class RaidPartyPlugin extends Plugin {
                         unlocked = client.getVarbitValue(5453) == 1; // Preserve unlock varbit
                         break;
                     case DEADEYE:
-                        unlocked = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) == 1 && client.getVarbitValue(Varbits.IN_LMS) == 0;
-                        break;
                     case MYSTIC_VIGOUR:
-                        unlocked = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) == 1 && client.getVarbitValue(Varbits.IN_LMS) == 0;
-                        break;
                     case EAGLE_EYE:
-                        unlocked = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) == 0 || client.getVarbitValue(Varbits.IN_LMS) == 1;
-                        break;
                     case MYSTIC_MIGHT:
-                        unlocked = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) == 0 || client.getVarbitValue(Varbits.IN_LMS) == 1;
+                        unlocked = true;
                         break;
                     default:
                         unlocked = true;
                         break;
                 }
                 if (unlocked) {
-                    packed |= (1 << p.ordinal());
+                    packed |= (1L << p.ordinal());
                 }
             } catch (Exception ignored) {
             }
@@ -1269,14 +1438,12 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onChatMessage(net.runelite.api.events.ChatMessage event) {
-        if (!config.announceMegarares()) {
+        if (!config.announceMegarares() || partyService == null || !partyService.isInParty()) {
             return;
         }
 
         if (event.getType() != net.runelite.api.ChatMessageType.GAMEMESSAGE &&
-            event.getType() != net.runelite.api.ChatMessageType.FRIENDSCHATNOTIFICATION &&
-            event.getType() != net.runelite.api.ChatMessageType.CLAN_MESSAGE &&
-            event.getType() != net.runelite.api.ChatMessageType.CLAN_GUEST_MESSAGE &&
+            event.getType() != net.runelite.api.ChatMessageType.SPAM &&
             event.getType() != net.runelite.api.ChatMessageType.BROADCAST) {
             return;
         }
@@ -1472,6 +1639,27 @@ public class RaidPartyPlugin extends Plugin {
         if (partyService.isInParty()) {
             needsPartySync = true;
         }
+    }
+
+    private boolean isPlayerInRaid() {
+        if (client.getLocalPlayer() == null) return false;
+
+        // CoX
+        if (client.getVarbitValue(Varbits.IN_RAID) == 1) return true;
+
+        // ToB (2=Inside/Spectator, 3=Dead Spectating)
+        int tobState = client.getVarbitValue(Varbits.THEATRE_OF_BLOOD);
+        if (tobState == 2 || tobState == 3) return true;
+
+        // ToA rooms
+        if (client.isInInstancedRegion() && client.getLocalPlayer().getWorldLocation() != null) {
+            int region = client.getLocalPlayer().getWorldLocation().getRegionID();
+            if (region == 14160 || region == 14162 || region == 14686 || region == 15186 || region == 15700 || region == 15184 || region == 15696 || region == 14164) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // --- Evidence ---

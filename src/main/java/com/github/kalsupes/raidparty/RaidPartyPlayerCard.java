@@ -95,6 +95,10 @@ public class RaidPartyPlayerCard extends JPanel {
         buildCard();
     }
 
+    public RaidPartyPlayerSync getSyncData() {
+        return syncData;
+    }
+
     public void updateSyncData(RaidPartyPlayerSync newSync) {
         this.syncData = newSync;
         if (!expanded) {
@@ -191,7 +195,7 @@ public class RaidPartyPlayerCard extends JPanel {
         for (net.runelite.api.Prayer pr : net.runelite.api.Prayer.values()) {
             com.github.kalsupes.raidparty.partypanel.data.PrayerData pd = prayers.getPrayerData().get(pr);
             if (pd != null) {
-                int ordIdx = 1 << pr.ordinal();
+                long ordIdx = 1L << pr.ordinal();
                 pd.setAvailable((sync.getAvailablePrayers() & ordIdx) != 0);
                 pd.setEnabled((sync.getActivePrayers() & ordIdx) != 0);
                 pd.setUnlocked((sync.getUnlockedPrayers() & ordIdx) != 0);

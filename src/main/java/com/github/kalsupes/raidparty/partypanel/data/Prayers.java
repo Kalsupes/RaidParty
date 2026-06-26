@@ -149,6 +149,6 @@ public class Prayers
 
 	public static boolean isUnlockedByDefault(Prayer p)
 	{
-		return !p.name().equals("DEADEYE") && !p.name().equals("MYSTIC_VIGOUR");
+		return true;
 	}
 }

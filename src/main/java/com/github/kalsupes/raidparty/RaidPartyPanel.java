@@ -405,14 +405,57 @@ public class RaidPartyPanel extends PluginPanel {
         });
     }
 
+    private void refreshRosterContainer() {
+        rosterContainer.removeAll();
+        for (RaidPartyPlayerCard card : memberCards.values()) {
+            rosterContainer.add(card);
+            rosterContainer.add(Box.createRigidArea(new Dimension(0, 4)));
+        }
+        rosterContainer.revalidate();
+        rosterContainer.repaint();
+    }
+
     public void removeMember(String username) {
+        if (username == null) return;
         SwingUtilities.invokeLater(() -> {
             String sanitized = username.toLowerCase().replace("\u00A0", " ");
-            RaidPartyPlayerCard card = memberCards.remove(sanitized);
-            if (card != null) {
-                rosterContainer.remove(card);
-                rosterContainer.revalidate();
-                rosterContainer.repaint();
+            if (memberCards.remove(sanitized) != null) {
+                refreshRosterContainer();
+            }
+        });
+    }
+
+    public void removeMemberById(long memberId) {
+        SwingUtilities.invokeLater(() -> {
+            boolean changed = memberCards.values().removeIf(c -> c.getSyncData() != null && c.getSyncData().getMemberId() == memberId);
+            if (changed) {
+                memberCards.entrySet().removeIf(e -> !memberCards.containsValue(e.getValue()));
+                refreshRosterContainer();
+            }
+        });
+    }
+
+    public void removeAllMembers() {
+        SwingUtilities.invokeLater(() -> {
+            memberCards.clear();
+            refreshRosterContainer();
+        });
+    }
+
+    public void reconcileMembers(java.util.Set<String> activeUsernames) {
+        if (activeUsernames == null) return;
+        SwingUtilities.invokeLater(() -> {
+            boolean changed = false;
+            java.util.Iterator<String> it = memberCards.keySet().iterator();
+            while (it.hasNext()) {
+                String u = it.next();
+                if (!activeUsernames.contains(u)) {
+                    it.remove();
+                    changed = true;
+                }
+            }
+            if (changed) {
+                refreshRosterContainer();
             }
         });
     }

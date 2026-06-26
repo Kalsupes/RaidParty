@@ -37,7 +37,7 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     private int readyState;
 
     // Active prayer IDs (ordinals packed into bits)
-    private int activePrayers;
+    private long activePrayers;
 
     // Skill levels: [boosted, real] for each Skill ordinal
     // Index = Skill.ordinal() * 2 (boosted), Skill.ordinal() * 2 + 1 (real)
@@ -67,8 +67,8 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     private int quiverAmmoQty; // VarPlayer.DIZANAS_QUIVER_ITEM_COUNT
 
     // Prayer states (ordinals packed into bits)
-    private int availablePrayers; // Prayers player has the level for
-    private int unlockedPrayers; // Prayers unlocked via quests/rewards
+    private long availablePrayers; // Prayers player has the level for
+    private long unlockedPrayers; // Prayers unlocked via quests/rewards
 
     // Spellbook: 0=Standard, 1=Ancient, 2=Lunar, 3=Arceuus
     private int spellbook;

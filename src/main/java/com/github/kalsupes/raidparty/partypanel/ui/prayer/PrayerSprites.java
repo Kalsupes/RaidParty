@@ -53,43 +53,11 @@ public enum PrayerSprites
 	PROTECT_FROM_MAGIC(Prayer.PROTECT_FROM_MAGIC, SpriteID.PRAYER_PROTECT_FROM_MAGIC, SpriteID.PRAYER_PROTECT_FROM_MAGIC_DISABLED, 12),
 	PROTECT_FROM_MISSILES(Prayer.PROTECT_FROM_MISSILES, SpriteID.PRAYER_PROTECT_FROM_MISSILES, SpriteID.PRAYER_PROTECT_FROM_MISSILES_DISABLED, 13),
 	PROTECT_FROM_MELEE(Prayer.PROTECT_FROM_MELEE, SpriteID.PRAYER_PROTECT_FROM_MELEE, SpriteID.PRAYER_PROTECT_FROM_MELEE_DISABLED, 14),
-	EAGLE_EYE(Prayer.EAGLE_EYE, SpriteID.PRAYER_EAGLE_EYE, SpriteID.PRAYER_EAGLE_EYE_DISABLED, 22)
-		{
-			@Override
-			public boolean isUnlocked(Client client)
-			{
-				return !DEADEYE.isUnlocked(client);
-			}
-		},
-	DEADEYE(Prayer.DEADEYE, SpriteID.PRAYER_DEADEYE, SpriteID.PRAYER_DEADEYE_DISABLED, 22)
-		{
-			@Override
-			public boolean isUnlocked(Client client)
-			{
-				boolean inLms = client.getVarbitValue(Varbits.IN_LMS) != 0;
-				boolean deadeye = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) != 0;
-				return deadeye && !inLms;
-			}
-		},
+	EAGLE_EYE(Prayer.EAGLE_EYE, SpriteID.PRAYER_EAGLE_EYE, SpriteID.PRAYER_EAGLE_EYE_DISABLED, 22),
+	DEADEYE(Prayer.DEADEYE, SpriteID.PRAYER_DEADEYE, SpriteID.PRAYER_DEADEYE_DISABLED, 22),
 
-	MYSTIC_MIGHT(Prayer.MYSTIC_MIGHT, SpriteID.PRAYER_MYSTIC_MIGHT, SpriteID.PRAYER_MYSTIC_MIGHT_DISABLED, 23)
-		{
-			@Override
-			public boolean isUnlocked(Client client)
-			{
-				return !MYSTIC_VIGOUR.isUnlocked(client);
-			}
-		},
-	MYSTIC_VIGOUR(Prayer.MYSTIC_VIGOUR, SpriteID.PRAYER_MYSTIC_VIGOUR, SpriteID.PRAYER_MYSTIC_VIGOUR_DISABLED, 23)
-		{
-			@Override
-			public boolean isUnlocked(Client client)
-			{
-				boolean inLms = client.getVarbitValue(Varbits.IN_LMS) != 0;
-				boolean vigour = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) != 0;
-				return vigour && !inLms;
-			}
-		},
+	MYSTIC_MIGHT(Prayer.MYSTIC_MIGHT, SpriteID.PRAYER_MYSTIC_MIGHT, SpriteID.PRAYER_MYSTIC_MIGHT_DISABLED, 23),
+	MYSTIC_VIGOUR(Prayer.MYSTIC_VIGOUR, SpriteID.PRAYER_MYSTIC_VIGOUR, SpriteID.PRAYER_MYSTIC_VIGOUR_DISABLED, 23),
 	RETRIBUTION(Prayer.RETRIBUTION, SpriteID.PRAYER_RETRIBUTION, SpriteID.PRAYER_RETRIBUTION_DISABLED, 15),
 	REDEMPTION(Prayer.REDEMPTION, SpriteID.PRAYER_REDEMPTION, SpriteID.PRAYER_REDEMPTION_DISABLED, 16),
 	SMITE(Prayer.SMITE, SpriteID.PRAYER_SMITE, SpriteID.PRAYER_SMITE_DISABLED, 17),

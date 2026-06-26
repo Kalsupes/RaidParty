@@ -6,6 +6,8 @@ import net.runelite.api.coords.LocalPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
+import net.runelite.client.ui.overlay.OverlayUtil;
+import net.runelite.client.party.PartyMember;
 import net.runelite.client.util.Text;
 
 import javax.inject.Inject;
@@ -28,6 +30,8 @@ public class RaidPartyOverlay extends Overlay {
 
     @Override
     public Dimension render(Graphics2D graphics) {
+        Font originalFont = graphics.getFont();
+        Stroke originalStroke = graphics.getStroke();
         long now = System.currentTimeMillis();
 
         // Collect expired then batch-remove (avoids O(n²) on CopyOnWriteArrayList)
@@ -225,6 +229,9 @@ public class RaidPartyOverlay extends Overlay {
             }
         }
 
+        graphics.setFont(originalFont);
+        graphics.setStroke(originalStroke);
+
         // --- Low HP Player Glow ---
         for (net.runelite.api.Player p : client.getPlayers()) {
             if (p == null || p.getName() == null)
@@ -247,6 +254,39 @@ public class RaidPartyOverlay extends Overlay {
                             && pName.replace('\u00A0', ' ').equals(s.getUsername().replace('\u00A0', ' '))) {
                         syncData = s;
                         break;
+                    }
+                }
+            }
+
+            if (!isLocal && config.drawOverheadNames()) {
+                boolean isFriendOrClan = p.isFriend() || p.isClanMember() || p.isFriendsChatMember();
+                if (!isFriendOrClan || !config.suppressOverheadForFriends()) {
+                    boolean isPartyMember = (syncData != null);
+                    if (!isPartyMember && plugin.getPartyService() != null) {
+                        String cleanPName = p.getName().replace('\u00A0', ' ');
+                        for (PartyMember pm : plugin.getPartyService().getMembers()) {
+                            if (pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                                isPartyMember = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isPartyMember) {
+                        String cleanName = Text.sanitize(p.getName());
+                        int zOffset = p.getLogicalHeight() + 40;
+                        net.runelite.api.Point textLoc = p.getCanvasTextLocation(graphics, cleanName, zOffset);
+                        if (textLoc != null) {
+                            Color nameColor = Color.WHITE; // Default White
+                            if (syncData != null && syncData.getLootRule() != null) {
+                                if (syncData.getLootRule() == LootRule.FFA) {
+                                    nameColor = new Color(175, 0, 175); // FFA Purple
+                                } else if (syncData.getLootRule() == LootRule.SPLIT) {
+                                    nameColor = new Color(0, 191, 255); // Split Cyan
+                                }
+                            }
+                            OverlayUtil.renderTextLocation(graphics, textLoc, cleanName, nameColor);
+                        }
                     }
                 }
             }
