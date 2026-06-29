@@ -1,9 +1,12 @@
 package com.github.kalsupes.raidparty;
 
+import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.client.game.WorldService;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
@@ -19,7 +22,10 @@ import com.github.kalsupes.raidparty.partypanel.ui.equipment.PlayerEquipmentPane
 import com.github.kalsupes.raidparty.partypanel.ui.PlayerInventoryPanel;
 import com.github.kalsupes.raidparty.partypanel.ui.prayer.PlayerPrayerPanel;
 import com.github.kalsupes.raidparty.partypanel.ui.skills.PlayerSkillsPanel;
+import net.runelite.client.util.WorldUtil;
+import net.runelite.http.api.worlds.World;
 
+import javax.inject.Inject;
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -216,10 +222,18 @@ public class RaidPartyPlayerCard extends JPanel {
             setBorder(new CompoundBorder(
                     new MatteBorder(2, 2, 2, 2, new Color(87, 80, 64)),
                     new EmptyBorder(0, 0, 5, 0)));
+        } else {
+            setBorder(new MatteBorder(2, 2, 2, 2, new Color(87, 80, 64)));
+        }
 
-            plugin.getClientThread().invokeLater(() -> {
-                this.adapterPlayer = createAdapterPlayer(syncData);
+        // Always build the adapter player on the client thread so actions that
+        // depend on it (e.g. world hopping from the right-click menu) work even
+        // before the card has ever been expanded. The expanded UI is only built
+        // when needed, but the data is ready immediately.
+        plugin.getClientThread().invokeLater(() -> {
+            this.adapterPlayer = createAdapterPlayer(syncData);
 
+            if (expanded) {
                 SwingUtilities.invokeLater(() -> {
                     displayPanel = new JPanel();
                     displayPanel.setBorder(new EmptyBorder(5, 5, 0, 5));
@@ -247,10 +261,8 @@ public class RaidPartyPlayerCard extends JPanel {
                     revalidate();
                     repaint();
                 });
-            });
-        } else {
-            setBorder(new MatteBorder(2, 2, 2, 2, new Color(87, 80, 64)));
-        }
+            }
+        });
 
         revalidate();
         repaint();
@@ -578,6 +590,7 @@ public class RaidPartyPlayerCard extends JPanel {
                 boolean isMuted = mutedList.contains(memberName);
 
                 JMenuItem muteItem = new JMenuItem(isMuted ? "Unmute Pings" : "Mute Pings");
+                JMenuItem hopTo = new JMenuItem("Hop-to");
                 muteItem.addActionListener(evt -> {
                     if (isMuted) {
                         mutedList.remove(memberName);
@@ -589,12 +602,22 @@ public class RaidPartyPlayerCard extends JPanel {
                     String newMuted = String.join(",", mutedList);
                     plugin.getConfigManager().setConfiguration("raidparty", "mutedPingUsers", newMuted);
                 });
+
+
+
+                hopTo.addActionListener( evt -> {
+                    plugin.hopTo(adapterPlayer);
+                });
+
+                popup.add(hopTo);
                 popup.add(muteItem);
 
                 popup.show(e.getComponent(), e.getX(), e.getY());
             }
         };
     }
+
+
 
     private JPanel createStatCell(String icon, int value, Color color) {
         JPanel cell = new JPanel(new FlowLayout(FlowLayout.CENTER, 2, 0));
