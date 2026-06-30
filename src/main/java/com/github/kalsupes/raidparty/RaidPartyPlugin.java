@@ -1,7 +1,8 @@
 package com.github.kalsupes.raidparty;
 
 import com.google.inject.Provides;
-import java.util.List;
+
+import java.util.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.inject.Inject;
@@ -22,8 +23,6 @@ import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.MenuAction;
@@ -41,15 +40,10 @@ import net.runelite.api.VarPlayer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserJoin;
 import net.runelite.client.party.events.UserPart;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import net.runelite.client.ui.DrawManager;
 import net.runelite.client.util.ImageCapture;
 import net.runelite.client.util.ImageUploadStyle;
@@ -60,8 +54,9 @@ import java.awt.FontMetrics;
 import java.awt.Image;
 import java.awt.event.KeyEvent;
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.config.Keybind;
 import net.runelite.api.widgets.Widget;
@@ -730,6 +725,17 @@ public class RaidPartyPlugin extends Plugin {
         }
 
         partyData.put(event.getMemberId(), event);
+
+        if (partyData.values().stream().anyMatch(d -> d.getReadyState() == 2)) {
+            // at least 1 player was not ready
+            Set<String> nonReadyPlayers = partyData.entrySet().stream().filter(e -> e.getValue().getReadyState() == 2).map(e -> e.getKey()).map(id -> partyService.getMemberById(id).getDisplayName()).collect(Collectors.toSet());
+            postPartyChat("<col=ff5555>Ready Check failed. These players were not ready: </col>" + nonReadyPlayers);
+            resetReadyState();
+        } else if (partyData.values().stream().allMatch(d -> d.getReadyState() == 1)) {
+            // all players are ready
+            postPartyChat("<col=00ff00>All players are ready!</col>");
+            resetReadyState();
+        }
 
         javax.swing.SwingUtilities.invokeLater(() -> {
             if (panel != null) {
