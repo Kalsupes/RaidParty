@@ -1,6 +1,5 @@
 package com.github.kalsupes.raidparty;
 
-import com.github.kalsupes.raidparty.partypanel.data.PartyPlayer;
 import com.google.inject.Provides;
 import java.util.List;
 import java.time.Instant;
@@ -20,8 +19,6 @@ import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.coords.WorldPoint;
@@ -31,7 +28,6 @@ import net.runelite.client.task.Schedule;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserJoin;
@@ -49,7 +45,6 @@ import java.awt.FontMetrics;
 import java.awt.Image;
 import java.awt.event.KeyEvent;
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
 import java.util.function.Supplier;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.config.Keybind;
@@ -1744,9 +1739,9 @@ public class RaidPartyPlugin extends Plugin {
         drawManager.requestNextFrameListener(imageCallback);
     }
 
-    public void hopTo(PartyPlayer partyPlayer) {
+    public void hopTo(RaidPartyPlayerSync syncData) {
         net.runelite.api.World source = getWorld(client.getWorld());
-        net.runelite.api.World target = getWorld(partyPlayer.getWorld());
+        net.runelite.api.World target = getWorld(syncData.getWorld());
 
         clientThread.invokeLater(() -> {
             if (client.getGameState() == GameState.LOGIN_SCREEN) {
