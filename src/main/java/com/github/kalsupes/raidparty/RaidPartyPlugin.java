@@ -7,42 +7,28 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.Client;
-import net.runelite.api.EnumComposition;
-import net.runelite.api.EnumID;
-import net.runelite.api.GameState;
-import net.runelite.api.Varbits;
+import net.runelite.api.*;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.game.WorldService;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.util.ImageUtil;
+import net.runelite.client.util.*;
 import net.runelite.client.game.ItemManager;
 import javax.swing.SwingUtilities;
 import java.awt.image.BufferedImage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import net.runelite.client.ui.overlay.OverlayManager;
-import net.runelite.api.events.MenuEntryAdded;
-import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.VarbitChanged;
-import net.runelite.api.MenuAction;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.task.Schedule;
-import net.runelite.client.util.HotkeyListener;
-import net.runelite.api.MenuEntry;
-import net.runelite.api.NPC;
-import net.runelite.api.Item;
-import net.runelite.api.InventoryID;
-import net.runelite.api.Skill;
-import net.runelite.api.VarPlayer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.StatChanged;
-import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.client.party.WSClient;
 import net.runelite.client.party.events.UserJoin;
@@ -52,8 +38,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import net.runelite.client.ui.DrawManager;
-import net.runelite.client.util.ImageCapture;
-import net.runelite.client.util.ImageUploadStyle;
+
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
@@ -61,11 +46,11 @@ import java.awt.FontMetrics;
 import java.awt.Image;
 import java.awt.event.KeyEvent;
 import java.time.format.DateTimeFormatter;
-import java.time.ZoneId;
 import java.util.function.Supplier;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.config.Keybind;
 import net.runelite.api.widgets.Widget;
+import net.runelite.http.api.worlds.World;
 
 @Slf4j
 @PluginDescriptor(name = "RaidParty", description = "A comprehensive party plugin for tracking raids, pings, low-HP warnings, and communication.", tags = {
@@ -142,10 +127,19 @@ public class RaidPartyPlugin extends Plugin {
     @Inject
     private KeyManager keyManager;
 
+    @Inject
+    private WorldService worldService;
+
     private RaidPartyPanel panel;
     private NavigationButton navButton;
     private boolean addedButton = false;
     private Instant lastLogout;
+
+    // World hopping (mirrors RuneLite's WorldHopper: hopToWorld only works once the
+    // world switcher widget is open, so we open it first then hop on a later tick)
+    private net.runelite.api.World quickHopTargetWorld;
+    private int displaySwitcherAttempts = 0;
+    private static final int DISPLAY_SWITCHER_MAX_ATTEMPTS = 3;
 
     // Ping Tracking
     private final List<BossPing> activePings = new CopyOnWriteArrayList<>();
@@ -900,6 +894,8 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onGameTick(GameTick event) {
+        processQuickHop();
+
         if (evidenceScreenshotTicks > 0) {
             evidenceScreenshotTicks--;
             if (evidenceScreenshotTicks == 0) {
@@ -1886,5 +1882,68 @@ public class RaidPartyPlugin extends Plugin {
         };
 
         drawManager.requestNextFrameListener(imageCallback);
+    }
+
+    public void hopTo(RaidPartyPlayerSync syncData) {
+        net.runelite.api.World source = getWorld(client.getWorld());
+        net.runelite.api.World target = getWorld(syncData.getWorld());
+
+        clientThread.invokeLater(() -> {
+            if (client.getGameState() == GameState.LOGIN_SCREEN) {
+                // on the login screen we can just change the world by ourselves
+                client.changeWorld(target);
+            } else {
+                client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                        "<col=aa77ff>[RaidParty]</col> Hopping to world: <col=ff5555>" + target.getId() + "</col>", "");
+                // block hopping from non-pvp to pvp
+                if (!source.getTypes().contains(WorldType.PVP) && target.getTypes().contains(WorldType.PVP)) {
+                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                            "<col=aa77ff>[RaidParty]</col> You attempted to hop to a PVP world: <col=ff5555>" + target.getId() + "</col>", "");
+                    return;
+                }
+
+                // client.hopToWorld() is a no-op unless the world switcher widget is open.
+                // Defer the actual hop to onGameTick, which opens the switcher then hops.
+                quickHopTargetWorld = target;
+                displaySwitcherAttempts = 0;
+            }
+        });
+    }
+
+    /**
+     * Executes a pending world hop. client.hopToWorld() only takes effect when the in-game
+     * world switcher list is loaded, so we open it first and hop once the widget appears.
+     */
+    private void processQuickHop() {
+        if (quickHopTargetWorld == null) {
+            return;
+        }
+
+        if (client.getWidget(net.runelite.api.widgets.ComponentID.WORLD_SWITCHER_WORLD_LIST) == null) {
+            client.openWorldHopper();
+
+            if (++displaySwitcherAttempts >= DISPLAY_SWITCHER_MAX_ATTEMPTS) {
+                client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
+                        "<col=aa77ff>[RaidParty]</col> Failed to quick-hop, please try again.", "");
+                quickHopTargetWorld = null;
+                displaySwitcherAttempts = 0;
+            }
+        } else {
+            client.hopToWorld(quickHopTargetWorld);
+            quickHopTargetWorld = null;
+            displaySwitcherAttempts = 0;
+        }
+    }
+
+    private net.runelite.api.World getWorld(int worldId) {
+        final net.runelite.api.World rsWorld = client.createWorld();
+        World world = worldService.getWorlds().findWorld(worldId);
+        rsWorld.setActivity(world.getActivity());
+        rsWorld.setAddress(world.getAddress());
+        rsWorld.setId(world.getId());
+        rsWorld.setPlayerCount(world.getPlayers());
+        rsWorld.setLocation(world.getLocation());
+        rsWorld.setTypes(WorldUtil.toWorldTypes(world.getTypes()));
+        return rsWorld;
     }
 }

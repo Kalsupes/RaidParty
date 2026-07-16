@@ -1,20 +1,16 @@
 package com.github.kalsupes.raidparty;
 
-import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SpriteManager;
-import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.components.materialtabs.MaterialTab;
 import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
-import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.ImageUtil;
 
 import com.github.kalsupes.raidparty.partypanel.data.GameItem;
 import com.github.kalsupes.raidparty.partypanel.data.PartyPlayer;
-import com.github.kalsupes.raidparty.partypanel.data.Prayers;
 import com.github.kalsupes.raidparty.partypanel.ui.equipment.PlayerEquipmentPanel;
 import com.github.kalsupes.raidparty.partypanel.ui.PlayerInventoryPanel;
 import com.github.kalsupes.raidparty.partypanel.ui.prayer.PlayerPrayerPanel;
@@ -589,6 +585,13 @@ public class RaidPartyPlayerCard extends JPanel {
                     String newMuted = String.join(",", mutedList);
                     plugin.getConfigManager().setConfiguration("raidparty", "mutedPingUsers", newMuted);
                 });
+
+                JMenuItem hopTo = new JMenuItem("Hop-to");
+                hopTo.addActionListener( evt -> {
+                    plugin.hopTo(syncData);
+                });
+
+                popup.add(hopTo);
                 popup.add(muteItem);
 
                 popup.show(e.getComponent(), e.getX(), e.getY());
