@@ -155,7 +155,7 @@ public interface RaidPartyConfig extends Config {
 
     @ConfigItem(keyName = "playPingSounds", name = "Play Audio Pings", description = "Toggle audio cues when pings are dropped", position = 18, section = pingSection)
     default boolean playPingSounds() {
-        return true;
+        return false;
     }
 
     @ConfigItem(keyName = "displayVirtualLevels", name = "Virtual Levels", description = "Display virtual skill levels above 99 in the party panel", position = 1, section = generalSection)

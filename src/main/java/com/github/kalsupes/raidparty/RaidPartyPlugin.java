@@ -2,6 +2,7 @@ package com.github.kalsupes.raidparty;
 
 import com.google.inject.Provides;
 import java.util.List;
+import java.util.Objects;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import javax.inject.Inject;
@@ -318,6 +319,7 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onPartyChanged(net.runelite.client.events.PartyChanged event) {
+        forceFullSync = true;
         partyData.clear();
         memberHeartbeats.clear();
         activePings.clear();
@@ -330,7 +332,8 @@ public class RaidPartyPlugin extends Plugin {
     public void onUserJoin(UserJoin event) {
         // We do not have usernames at user join until they send a sync broadcast.
         // However, we MUST dispatch a fresh full payload to them so their
-        // client receives a baseline cache of our arrays rather than hollow deltas.
+        // client receives a baseline cache of our data rather than hollow deltas.
+        forceFullSync = true;
         lastSentInvHash = -1;
         lastSentEqpHash = -1;
         lastSentSkillsHash = -1;
@@ -925,8 +928,8 @@ public class RaidPartyPlugin extends Plugin {
             for (net.runelite.client.party.PartyMember pm : partyService.getMembers()) {
                 long mId = pm.getMemberId();
                 Integer lastSeen = memberHeartbeats.get(mId);
-                // If remote member hasn't sent a sync packet in 35 ticks (~21 seconds), time them out!
-                if (lastSeen != null && nowTicks - lastSeen > 35) {
+                // If remote member hasn't sent a sync packet in 70 ticks (~42 seconds), time them out!
+                if (lastSeen != null && nowTicks - lastSeen > 70) {
                     continue;
                 }
                 activeIds.add(mId);
@@ -985,7 +988,7 @@ public class RaidPartyPlugin extends Plugin {
                 partySyncTimer--;
 
             keepaliveTicks++;
-            if (keepaliveTicks >= 15) { // Force heartbeat keepalive broadcast every 15 ticks (9 seconds)
+            if (keepaliveTicks >= 25) { // Force heartbeat keepalive broadcast every 25 ticks (15 seconds)
                 keepaliveTicks = 0;
                 needsPartySync = true;
             }
@@ -1018,71 +1021,169 @@ public class RaidPartyPlugin extends Plugin {
         }
     }
 
-    private int lastSentInvHash;
-    private int lastSentEqpHash;
-    private int lastSentSkillsHash;
-    private int lastSentRunePouchHash;
-    private int lastSentXpsHash;
+    private Integer lastSentHp;
+    private Integer lastSentMaxHp;
+    private Integer lastSentPrayer;
+    private Integer lastSentMaxPrayer;
+    private Integer lastSentSpec;
+    private Integer lastSentRun;
+    private Integer lastSentWorld;
+    private Integer lastSentCombatLevel;
+    private String lastSentUsername;
+    private Integer lastSentReadyState;
+    private Long lastSentActivePrayers;
+    private LootRule lastSentLootRule;
+    private Integer lastSentStamina;
+    private Integer lastSentPoison;
+    private Integer lastSentDisease;
+    private Integer lastSentTotalLevel;
+    private Boolean lastSentVengeanceActive;
+    private Integer lastSentQuiverAmmoId;
+    private Integer lastSentQuiverAmmoQty;
+    private Long lastSentAvailablePrayers;
+    private Long lastSentUnlockedPrayers;
+    private Integer lastSentSpellbook;
+
+    private int lastSentInvHash = -1;
+    private int lastSentEqpHash = -1;
+    private int lastSentSkillsHash = -1;
+    private int lastSentRunePouchHash = -1;
+    private int lastSentXpsHash = -1;
+    private int forceSyncCounter = 0;
+    private boolean forceFullSync = true;
 
     private void sendPartySyncMessage() {
         RaidPartyPlayerSync local = cachedLocalSync;
-        if (local == null)
+        if (local == null || partyService == null || !partyService.isInParty())
             return;
 
-        // Create a distinct copy for the network dispatch so we don't corrupt the local
-        // UI's data
-        RaidPartyPlayerSync syncCopy = new RaidPartyPlayerSync();
-        syncCopy.setHp(local.getHp());
-        syncCopy.setMaxHp(local.getMaxHp());
-        syncCopy.setPrayer(local.getPrayer());
-        syncCopy.setMaxPrayer(local.getMaxPrayer());
-        syncCopy.setSpec(local.getSpec());
-        syncCopy.setRun(local.getRun());
-        syncCopy.setWorld(local.getWorld());
-        syncCopy.setCombatLevel(local.getCombatLevel());
-        syncCopy.setUsername(local.getUsername());
-        syncCopy.setActivePrayers(local.getActivePrayers());
-        syncCopy.setLootRule(local.getLootRule());
-        syncCopy.setStamina(local.getStamina());
-        syncCopy.setPoison(local.getPoison());
-        syncCopy.setDisease(local.getDisease());
-        syncCopy.setTotalLevel(local.getTotalLevel());
-        syncCopy.setQuiverAmmoId(local.getQuiverAmmoId());
-        syncCopy.setQuiverAmmoQty(local.getQuiverAmmoQty());
-        syncCopy.setAvailablePrayers(local.getAvailablePrayers());
-        syncCopy.setUnlockedPrayers(local.getUnlockedPrayers());
-        syncCopy.setSpellbook(local.getSpellbook());
-        syncCopy.setReadyState(local.getReadyState());
+        forceSyncCounter++;
+        boolean fullSync = (forceFullSync || lastSentUsername == null || forceSyncCounter >= 150);
+        if (fullSync) {
+            forceSyncCounter = 0;
+            forceFullSync = false;
+        }
 
-        // Delta Array Logic: Only attach arrays if their hash changed
+        RaidPartyPlayerSync syncCopy = new RaidPartyPlayerSync();
+
+        if (fullSync || !Objects.equals(local.getRawHp(), lastSentHp)) {
+            syncCopy.setHp(local.getRawHp());
+            lastSentHp = local.getRawHp();
+        }
+        if (fullSync || !Objects.equals(local.getRawMaxHp(), lastSentMaxHp)) {
+            syncCopy.setMaxHp(local.getRawMaxHp());
+            lastSentMaxHp = local.getRawMaxHp();
+        }
+        if (fullSync || !Objects.equals(local.getRawPrayer(), lastSentPrayer)) {
+            syncCopy.setPrayer(local.getRawPrayer());
+            lastSentPrayer = local.getRawPrayer();
+        }
+        if (fullSync || !Objects.equals(local.getRawMaxPrayer(), lastSentMaxPrayer)) {
+            syncCopy.setMaxPrayer(local.getRawMaxPrayer());
+            lastSentMaxPrayer = local.getRawMaxPrayer();
+        }
+        if (fullSync || !Objects.equals(local.getRawSpec(), lastSentSpec)) {
+            syncCopy.setSpec(local.getRawSpec());
+            lastSentSpec = local.getRawSpec();
+        }
+        if (fullSync || !Objects.equals(local.getRawRun(), lastSentRun)) {
+            syncCopy.setRun(local.getRawRun());
+            lastSentRun = local.getRawRun();
+        }
+        if (fullSync || !Objects.equals(local.getRawWorld(), lastSentWorld)) {
+            syncCopy.setWorld(local.getRawWorld());
+            lastSentWorld = local.getRawWorld();
+        }
+        if (fullSync || !Objects.equals(local.getRawCombatLevel(), lastSentCombatLevel)) {
+            syncCopy.setCombatLevel(local.getRawCombatLevel());
+            lastSentCombatLevel = local.getRawCombatLevel();
+        }
+        if (fullSync || !Objects.equals(local.getUsername(), lastSentUsername)) {
+            syncCopy.setUsername(local.getUsername());
+            lastSentUsername = local.getUsername();
+        }
+        if (fullSync || !Objects.equals(local.getRawActivePrayers(), lastSentActivePrayers)) {
+            syncCopy.setActivePrayers(local.getRawActivePrayers());
+            lastSentActivePrayers = local.getRawActivePrayers();
+        }
+        if (fullSync || !Objects.equals(local.getLootRule(), lastSentLootRule)) {
+            syncCopy.setLootRule(local.getLootRule());
+            lastSentLootRule = local.getLootRule();
+        }
+        if (fullSync || !Objects.equals(local.getRawStamina(), lastSentStamina)) {
+            syncCopy.setStamina(local.getRawStamina());
+            lastSentStamina = local.getRawStamina();
+        }
+        if (fullSync || !Objects.equals(local.getRawPoison(), lastSentPoison)) {
+            syncCopy.setPoison(local.getRawPoison());
+            lastSentPoison = local.getRawPoison();
+        }
+        if (fullSync || !Objects.equals(local.getRawDisease(), lastSentDisease)) {
+            syncCopy.setDisease(local.getRawDisease());
+            lastSentDisease = local.getRawDisease();
+        }
+        if (fullSync || !Objects.equals(local.getRawTotalLevel(), lastSentTotalLevel)) {
+            syncCopy.setTotalLevel(local.getRawTotalLevel());
+            lastSentTotalLevel = local.getRawTotalLevel();
+        }
+        if (fullSync || !Objects.equals(local.getRawVengeanceActive(), lastSentVengeanceActive)) {
+            syncCopy.setVengeanceActive(local.getRawVengeanceActive());
+            lastSentVengeanceActive = local.getRawVengeanceActive();
+        }
+        if (fullSync || !Objects.equals(local.getRawQuiverAmmoId(), lastSentQuiverAmmoId)) {
+            syncCopy.setQuiverAmmoId(local.getRawQuiverAmmoId());
+            lastSentQuiverAmmoId = local.getRawQuiverAmmoId();
+        }
+        if (fullSync || !Objects.equals(local.getRawQuiverAmmoQty(), lastSentQuiverAmmoQty)) {
+            syncCopy.setQuiverAmmoQty(local.getRawQuiverAmmoQty());
+            lastSentQuiverAmmoQty = local.getRawQuiverAmmoQty();
+        }
+        if (fullSync || !Objects.equals(local.getRawAvailablePrayers(), lastSentAvailablePrayers)) {
+            syncCopy.setAvailablePrayers(local.getRawAvailablePrayers());
+            lastSentAvailablePrayers = local.getRawAvailablePrayers();
+        }
+        if (fullSync || !Objects.equals(local.getRawUnlockedPrayers(), lastSentUnlockedPrayers)) {
+            syncCopy.setUnlockedPrayers(local.getRawUnlockedPrayers());
+            lastSentUnlockedPrayers = local.getRawUnlockedPrayers();
+        }
+        if (fullSync || !Objects.equals(local.getRawSpellbook(), lastSentSpellbook)) {
+            syncCopy.setSpellbook(local.getRawSpellbook());
+            lastSentSpellbook = local.getRawSpellbook();
+        }
+        if (fullSync || !Objects.equals(local.getRawReadyState(), lastSentReadyState)) {
+            syncCopy.setReadyState(local.getRawReadyState());
+            lastSentReadyState = local.getRawReadyState();
+        }
+
+        // Delta Array Logic: Only attach arrays if their hash changed or fullSync
         int invHash = Arrays.hashCode(local.getInvIds()) * 31 + Arrays.hashCode(local.getInvQtys());
-        if (invHash != lastSentInvHash) {
+        if (fullSync || invHash != lastSentInvHash) {
             syncCopy.setInvIds(local.getInvIds());
             syncCopy.setInvQtys(local.getInvQtys());
             lastSentInvHash = invHash;
         }
 
         int eqpHash = Arrays.hashCode(local.getEqpIds()) * 31 + Arrays.hashCode(local.getEqpQtys());
-        if (eqpHash != lastSentEqpHash) {
+        if (fullSync || eqpHash != lastSentEqpHash) {
             syncCopy.setEqpIds(local.getEqpIds());
             syncCopy.setEqpQtys(local.getEqpQtys());
             lastSentEqpHash = eqpHash;
         }
 
         int skillsHash = Arrays.hashCode(local.getSkillLevels());
-        if (skillsHash != lastSentSkillsHash) {
+        if (fullSync || skillsHash != lastSentSkillsHash) {
             syncCopy.setSkillLevels(local.getSkillLevels());
             lastSentSkillsHash = skillsHash;
         }
 
         int xpsHash = Arrays.hashCode(local.getSkillXps());
-        if (xpsHash != lastSentXpsHash) {
+        if (fullSync || xpsHash != lastSentXpsHash) {
             syncCopy.setSkillXps(local.getSkillXps());
             lastSentXpsHash = xpsHash;
         }
 
         int pouchHash = Arrays.hashCode(local.getRunePouchIds()) * 31 + Arrays.hashCode(local.getRunePouchQtys());
-        if (pouchHash != lastSentRunePouchHash) {
+        if (fullSync || pouchHash != lastSentRunePouchHash) {
             syncCopy.setRunePouchIds(local.getRunePouchIds());
             syncCopy.setRunePouchQtys(local.getRunePouchQtys());
             lastSentRunePouchHash = pouchHash;
@@ -1098,8 +1199,31 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     private void mergeDeltaSync(RaidPartyPlayerSync oldSync, RaidPartyPlayerSync newSync) {
-        if (oldSync == null)
+        if (oldSync == null || newSync == null)
             return;
+
+        if (newSync.getRawHp() == null) newSync.setHp(oldSync.getRawHp());
+        if (newSync.getRawMaxHp() == null) newSync.setMaxHp(oldSync.getRawMaxHp());
+        if (newSync.getRawPrayer() == null) newSync.setPrayer(oldSync.getRawPrayer());
+        if (newSync.getRawMaxPrayer() == null) newSync.setMaxPrayer(oldSync.getRawMaxPrayer());
+        if (newSync.getRawSpec() == null) newSync.setSpec(oldSync.getRawSpec());
+        if (newSync.getRawRun() == null) newSync.setRun(oldSync.getRawRun());
+        if (newSync.getRawWorld() == null) newSync.setWorld(oldSync.getRawWorld());
+        if (newSync.getRawCombatLevel() == null) newSync.setCombatLevel(oldSync.getRawCombatLevel());
+        if (newSync.getUsername() == null) newSync.setUsername(oldSync.getUsername());
+        if (newSync.getRawReadyState() == null) newSync.setReadyState(oldSync.getRawReadyState());
+        if (newSync.getRawActivePrayers() == null) newSync.setActivePrayers(oldSync.getRawActivePrayers());
+        if (newSync.getLootRule() == null) newSync.setLootRule(oldSync.getLootRule());
+        if (newSync.getRawStamina() == null) newSync.setStamina(oldSync.getRawStamina());
+        if (newSync.getRawPoison() == null) newSync.setPoison(oldSync.getRawPoison());
+        if (newSync.getRawDisease() == null) newSync.setDisease(oldSync.getRawDisease());
+        if (newSync.getRawTotalLevel() == null) newSync.setTotalLevel(oldSync.getRawTotalLevel());
+        if (newSync.getRawVengeanceActive() == null) newSync.setVengeanceActive(oldSync.getRawVengeanceActive());
+        if (newSync.getRawQuiverAmmoId() == null) newSync.setQuiverAmmoId(oldSync.getRawQuiverAmmoId());
+        if (newSync.getRawQuiverAmmoQty() == null) newSync.setQuiverAmmoQty(oldSync.getRawQuiverAmmoQty());
+        if (newSync.getRawAvailablePrayers() == null) newSync.setAvailablePrayers(oldSync.getRawAvailablePrayers());
+        if (newSync.getRawUnlockedPrayers() == null) newSync.setUnlockedPrayers(oldSync.getRawUnlockedPrayers());
+        if (newSync.getRawSpellbook() == null) newSync.setSpellbook(oldSync.getRawSpellbook());
 
         if (newSync.getInvIds() == null) {
             newSync.setInvIds(oldSync.getInvIds());
@@ -1644,18 +1768,39 @@ public class RaidPartyPlugin extends Plugin {
     private boolean isPlayerInRaid() {
         if (client.getLocalPlayer() == null) return false;
 
-        // CoX
-        if (client.getVarbitValue(Varbits.IN_RAID) == 1) return true;
+        // 1. CoX Varbit check
+        try {
+            if (client.getVarbitValue(Varbits.IN_RAID) == 1) return true;
+        } catch (Exception ignored) {}
 
-        // ToB (2=Inside/Spectator, 3=Dead Spectating)
-        int tobState = client.getVarbitValue(Varbits.THEATRE_OF_BLOOD);
-        if (tobState == 2 || tobState == 3) return true;
+        // 2. ToB Varbit check (2=Inside/Spectator, 3=Dead Spectating)
+        try {
+            int tobState = client.getVarbitValue(Varbits.THEATRE_OF_BLOOD);
+            if (tobState == 2 || tobState == 3) return true;
+        } catch (Exception ignored) {}
 
-        // ToA rooms
-        if (client.isInInstancedRegion() && client.getLocalPlayer().getWorldLocation() != null) {
-            int region = client.getLocalPlayer().getWorldLocation().getRegionID();
-            if (region == 14160 || region == 14162 || region == 14686 || region == 15186 || region == 15700 || region == 15184 || region == 15696 || region == 14164) {
-                return true;
+        // 3. ToA Varbit check (481 is TOA_RAID in RuneLite)
+        try {
+            if (client.getVarbitValue(481) > 0) return true;
+        } catch (Exception ignored) {}
+
+        // 4. Instanced Region ID checks (MUST use fromLocalInstance to resolve instanced coordinates to template region IDs)
+        if (client.isInInstancedRegion() && client.getLocalPlayer().getLocalLocation() != null) {
+            net.runelite.api.coords.WorldPoint wp = net.runelite.api.coords.WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation());
+            if (wp != null) {
+                int region = wp.getRegionID();
+                // ToA Rooms (Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
+                if (region == 14160 || region == 14162 || region == 14686 || region == 15186 || region == 15700 || region == 15184 || region == 15696 || region == 14164) {
+                    return true;
+                }
+                // ToB Rooms (Maiden, Bloat, Nylocas, Sotetseg, Xarpus, Verzik, Loot)
+                if (region == 12611 || region == 12612 || region == 12613 || region == 13122 || region == 13123 || region == 13125 || region == 12867) {
+                    return true;
+                }
+                // CoX Rooms (Olm, Raid floors)
+                if (region == 12889 || (region >= 13136 && region <= 13145) || (region >= 13393 && region <= 13400)) {
+                    return true;
+                }
             }
         }
 
