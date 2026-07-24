@@ -1796,26 +1796,7 @@ public class RaidPartyPlugin extends Plugin {
         }
     }
 
-    private static int[] cachedBoardVarcStrIds = null;
-
-    private int[] getBoardVarcStrIds() {
-        if (cachedBoardVarcStrIds != null) {
-            return cachedBoardVarcStrIds;
-        }
-        java.util.List<Integer> ids = new java.util.ArrayList<>();
-        try {
-            for (java.lang.reflect.Field f : net.runelite.api.VarClientStr.class.getFields()) {
-                if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) && f.getType() == int.class) {
-                    String fName = f.getName();
-                    if (fName.contains("RAID_PARTY_MEMBER") || fName.contains("THEATRE_OF_BLOOD") || fName.contains("TOA")) {
-                        ids.add(f.getInt(null));
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        cachedBoardVarcStrIds = ids.stream().mapToInt(i -> i).toArray();
-        return cachedBoardVarcStrIds;
-    }
+    // Reflection removed: getBoardVarcStrIds method removed as it is forbidden by RuneLite and broken in newer versions
 
     public boolean isPartyMemberWithLocalPlayer(RaidPartyPlayerSync syncData) {
         if (syncData == null || client.getLocalPlayer() == null) return false;
@@ -1847,29 +1828,7 @@ public class RaidPartyPlugin extends Plugin {
                 return false; // On same world, but NOT inside our instanced raid/room!
             }
         }
-
-        // 3. Lobby / Overworld Hybrid Board Check: Check in-game Party Board (CoX / ToB / ToA)
-        String targetUsername = syncData.getUsername();
-        if (targetUsername != null && !targetUsername.isEmpty() && client.getLocalPlayer().getName() != null) {
-            String cleanTarget = net.runelite.client.util.Text.removeTags(targetUsername).toLowerCase();
-            String cleanLocal = net.runelite.client.util.Text.removeTags(client.getLocalPlayer().getName()).toLowerCase();
-            
-            java.util.Set<String> boardNames = new java.util.HashSet<>();
-            try {
-                int[] ids = getBoardVarcStrIds();
-                for (int varcStrId : ids) {
-                    String name = client.getVarcStrValue(varcStrId);
-                    if (name != null && !name.isEmpty() && !name.equals("-")) {
-                        boardNames.add(net.runelite.client.util.Text.removeTags(name).toLowerCase());
-                    }
-                }
-            } catch (Exception ignored) {}
-
-            // If an in-game board is active and our own player is on it, use the board list!
-            if (!boardNames.isEmpty() && boardNames.contains(cleanLocal)) {
-                return boardNames.contains(cleanTarget);
-            }
-        }
+        // (Hybrid Board Check removed: VarClientStr reflection was forbidden and broken)
 
         // 4. Fallback (not inside raid instance, no active party board registered): return true if on our exact same world
         return true;
