@@ -632,12 +632,6 @@ public class RaidPartyPlayerCard extends JPanel {
                     plugin.getConfigManager().setConfiguration("raidparty", "mutedPingUsers", newMuted);
                 });
 
-                JMenuItem hopTo = new JMenuItem("Hop-to");
-                hopTo.addActionListener( evt -> {
-                    plugin.hopTo(syncData);
-                });
-
-                popup.add(hopTo);
                 popup.add(muteItem);
 
                 popup.show(e.getComponent(), e.getX(), e.getY());

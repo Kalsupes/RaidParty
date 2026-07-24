@@ -135,11 +135,7 @@ public class RaidPartyPlugin extends Plugin {
     private boolean addedButton = false;
     private Instant lastLogout;
 
-    // World hopping (mirrors RuneLite's WorldHopper: hopToWorld only works once the
-    // world switcher widget is open, so we open it first then hop on a later tick)
-    private net.runelite.api.World quickHopTargetWorld;
-    private int displaySwitcherAttempts = 0;
-    private static final int DISPLAY_SWITCHER_MAX_ATTEMPTS = 3;
+    // World hopping functionality removed as requested
 
     // Ping Tracking
     private final List<BossPing> activePings = new CopyOnWriteArrayList<>();
@@ -893,7 +889,7 @@ public class RaidPartyPlugin extends Plugin {
 
     @Subscribe
     public void onGameTick(GameTick event) {
-        processQuickHop();
+
 
         if (evidenceScreenshotTicks > 0) {
             evidenceScreenshotTicks--;
@@ -1968,84 +1964,5 @@ public class RaidPartyPlugin extends Plugin {
         drawManager.requestNextFrameListener(imageCallback);
     }
 
-    public void hopTo(RaidPartyPlayerSync syncData) {
-        if (syncData == null) return;
-        net.runelite.api.World source = getWorld(client.getWorld());
-        net.runelite.api.World target = getWorld(syncData.getWorld());
 
-        if (source == null || target == null) {
-            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                    "<col=aa77ff>[RaidParty]</col> Unable to find world information for world " + syncData.getWorld() + ".", "");
-            return;
-        }
-        if (source.getId() == target.getId()) {
-            client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                    "<col=aa77ff>[RaidParty]</col> You are already on world " + target.getId() + ".", "");
-            return;
-        }
-
-        clientThread.invokeLater(() -> {
-            if (client.getGameState() == GameState.LOGIN_SCREEN) {
-                // on the login screen we can just change the world by ourselves
-                client.changeWorld(target);
-            } else {
-                client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                        "<col=aa77ff>[RaidParty]</col> Hopping to world: <col=ff5555>" + target.getId() + "</col>", "");
-                // block hopping from non-pvp to pvp
-                if (!source.getTypes().contains(WorldType.PVP) && target.getTypes().contains(WorldType.PVP)) {
-                    client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                            "<col=aa77ff>[RaidParty]</col> You attempted to hop to a PVP world: <col=ff5555>" + target.getId() + "</col>", "");
-                    return;
-                }
-
-                // client.hopToWorld() is a no-op unless the world switcher widget is open.
-                // Defer the actual hop to onGameTick, which opens the switcher then hops.
-                quickHopTargetWorld = target;
-                displaySwitcherAttempts = 0;
-            }
-        });
-    }
-
-    /**
-     * Executes a pending world hop. client.hopToWorld() only takes effect when the in-game
-     * world switcher list is loaded, so we open it first and hop once the widget appears.
-     */
-    private void processQuickHop() {
-        if (quickHopTargetWorld == null) {
-            return;
-        }
-
-        if (client.getWidget(net.runelite.api.widgets.ComponentID.WORLD_SWITCHER_WORLD_LIST) == null) {
-            client.openWorldHopper();
-
-            if (++displaySwitcherAttempts >= DISPLAY_SWITCHER_MAX_ATTEMPTS) {
-                client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
-                        "<col=aa77ff>[RaidParty]</col> Failed to quick-hop, please try again.", "");
-                quickHopTargetWorld = null;
-                displaySwitcherAttempts = 0;
-            }
-        } else {
-            client.hopToWorld(quickHopTargetWorld);
-            quickHopTargetWorld = null;
-            displaySwitcherAttempts = 0;
-        }
-    }
-
-    private net.runelite.api.World getWorld(int worldId) {
-        if (worldService == null || worldService.getWorlds() == null) {
-            return null;
-        }
-        World world = worldService.getWorlds().findWorld(worldId);
-        if (world == null) {
-            return null;
-        }
-        final net.runelite.api.World rsWorld = client.createWorld();
-        rsWorld.setActivity(world.getActivity());
-        rsWorld.setAddress(world.getAddress());
-        rsWorld.setId(world.getId());
-        rsWorld.setPlayerCount(world.getPlayers());
-        rsWorld.setLocation(world.getLocation());
-        rsWorld.setTypes(WorldUtil.toWorldTypes(world.getTypes()));
-        return rsWorld;
-    }
 }
