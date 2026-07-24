@@ -121,9 +121,9 @@ public interface RaidPartyConfig extends Config {
         return java.awt.Color.decode("#0000FF");
     }
 
-    @ConfigItem(keyName = "resourcePingSound", name = "Resource Ping Sound ID", description = "Sound Effect ID for Resource pings (Default: 2267)", position = 12, section = pingSection)
+    @ConfigItem(keyName = "resourcePingSound", name = "Resource Ping Sound ID", description = "Sound Effect ID for Resource pings (Default: 2266)", position = 12, section = pingSection)
     default int resourcePingSound() {
-        return 2267; // Assuming 2267 is a safe default, can be changed by user
+        return 2266; // 2266 is the clean UI boop
     }
 
     // --- Entity/Object/Item ---
@@ -189,6 +189,11 @@ public interface RaidPartyConfig extends Config {
         return true;
     }
 
+    @ConfigItem(keyName = "filterRaidScreenshots", name = "Filter Raid Screenshots", description = "Only include party members who are on your world and inside your raid group during Raid Start rules and screenshots", position = 4, section = evidenceSection)
+    default boolean filterRaidScreenshots() {
+        return true;
+    }
+
     // ================= TEAM UI =================
     @ConfigItem(keyName = "enableLowHpGlow", name = "Enable Low HP Glow", description = "Toggle the pulsing 3D outline when a teammate drops below the Low HP threshold", position = 0, section = teamSection)
     default boolean enableLowHpGlow() {
@@ -231,6 +236,11 @@ public interface RaidPartyConfig extends Config {
 
     @ConfigItem(keyName = "suppressOverheadForFriends", name = "Ignore Friends & Clan", description = "Do not draw overhead names for players on your friends list or clan chat to prevent overlapping with Player Indicators", position = 7, section = teamSection)
     default boolean suppressOverheadForFriends() {
+        return true;
+    }
+
+    @ConfigItem(keyName = "indicateFarAwayMembers", name = "Indicate Away Members", description = "Dim the panel border and show an indicator for party members who are on a different world or outside your raid group", position = 8, section = teamSection)
+    default boolean indicateFarAwayMembers() {
         return true;
     }
 

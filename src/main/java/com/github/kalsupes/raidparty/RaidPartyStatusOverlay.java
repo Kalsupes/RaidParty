@@ -119,14 +119,14 @@ public class RaidPartyStatusOverlay extends Overlay
 
         String cleanPName = p.getName().replace('\u00A0', ' ');
         for (RaidPartyPlayerSync sync : plugin.getPartyData().values()) {
-            if (sync.getUsername() != null && sync.getUsername().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+            if (sync != null && sync.getUsername() != null && sync.getUsername().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
                 return sync;
             }
         }
 
         if (partyService != null) {
             for (PartyMember pm : partyService.getMembers()) {
-                if (pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                if (pm != null && pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
                     return plugin.getPartyData().get(pm.getMemberId());
                 }
             }

@@ -34,14 +34,8 @@ public class RaidPartyOverlay extends Overlay {
         Stroke originalStroke = graphics.getStroke();
         long now = System.currentTimeMillis();
 
-        // Collect expired then batch-remove (avoids O(n²) on CopyOnWriteArrayList)
-        java.util.List<RaidPartyPlugin.BossPing> expired = new java.util.ArrayList<>();
-        for (RaidPartyPlugin.BossPing p : plugin.getActivePings()) {
-            if (now > p.getExpiryTime())
-                expired.add(p);
-        }
-        if (!expired.isEmpty())
-            plugin.getActivePings().removeAll(expired);
+        // Remove expired pings atomically
+        plugin.getActivePings().removeIf(p -> now > p.getExpiryTime());
 
         for (RaidPartyPlugin.BossPing ping : plugin.getActivePings()) {
             if (ping.getPoint().getPlane() != client.getPlane())
@@ -58,7 +52,7 @@ public class RaidPartyOverlay extends Overlay {
             if (ping.getTargetType() == 1) { // NPC Target
                 net.runelite.api.NPC npc = null;
                 for (net.runelite.api.NPC n : client.getNpcs()) {
-                    if (n.getIndex() == ping.getTargetIndex()) {
+                    if (n != null && n.getIndex() == ping.getTargetIndex()) {
                         npc = n;
                         break;
                     }
@@ -250,7 +244,7 @@ public class RaidPartyOverlay extends Overlay {
             } else {
                 String pName = p.getName();
                 for (RaidPartyPlayerSync s : plugin.getPartyData().values()) {
-                    if (pName.compareTo("\u00A0") != 0
+                    if (s != null && s.getUsername() != null && pName != null
                             && pName.replace('\u00A0', ' ').equals(s.getUsername().replace('\u00A0', ' '))) {
                         syncData = s;
                         break;
@@ -265,7 +259,7 @@ public class RaidPartyOverlay extends Overlay {
                     if (!isPartyMember && plugin.getPartyService() != null) {
                         String cleanPName = p.getName().replace('\u00A0', ' ');
                         for (PartyMember pm : plugin.getPartyService().getMembers()) {
-                            if (pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                            if (pm != null && pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
                                 isPartyMember = true;
                                 break;
                             }

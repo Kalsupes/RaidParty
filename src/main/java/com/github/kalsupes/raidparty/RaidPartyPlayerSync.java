@@ -16,7 +16,7 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class RaidPartyPlayerSync extends PartyMemberMessage {
-    @SerializedName(value = "hp", alternate = {"hp", "hitpoints"})
+    @SerializedName(value = "hp", alternate = {"hitpoints"})
     private Integer hp;
     
     @SerializedName(value = "mhp", alternate = {"maxHp", "maxHitpoints"})
@@ -118,6 +118,9 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     @SerializedName(value = "sb", alternate = {"spellbook"})
     private Integer spellbook;
 
+    @SerializedName(value = "ir", alternate = {"inRaid"})
+    private Boolean inRaid;
+
     // --- Null-safe primitive getters for UI and safe null-checking ---
     public int getHp() { return hp != null ? hp : 0; }
     public int getMaxHp() { return maxHp != null ? maxHp : 0; }
@@ -140,6 +143,8 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     public long getAvailablePrayers() { return availablePrayers != null ? availablePrayers : 0L; }
     public long getUnlockedPrayers() { return unlockedPrayers != null ? unlockedPrayers : 0L; }
     public int getSpellbook() { return spellbook != null ? spellbook : 0; }
+    public boolean getInRaid() { return inRaid != null && inRaid; }
+    public boolean isInRaid() { return inRaid != null && inRaid; }
 
     // --- Raw nullable getters for delta diff checks ---
     public Integer getRawHp() { return hp; }
@@ -162,4 +167,5 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     public Long getRawAvailablePrayers() { return availablePrayers; }
     public Long getRawUnlockedPrayers() { return unlockedPrayers; }
     public Integer getRawSpellbook() { return spellbook; }
+    public Boolean getRawInRaid() { return inRaid; }
 }

@@ -21,7 +21,8 @@ public class RaidPartyPanel extends PluginPanel {
     private final JPanel rosterContainer = new JPanel();
 
     // UI Containers
-    private final JPanel northActionsContainer = new JPanel(new BorderLayout());
+    private final CardLayout northCardLayout = new CardLayout();
+    private final JPanel northActionsContainer = new JPanel(northCardLayout);
     private final JPanel disconnectedPanel = new JPanel();
     private final JPanel connectedPanel = new JPanel();
     private final JPanel centerContainer = new JPanel(new BorderLayout());
@@ -320,7 +321,9 @@ public class RaidPartyPanel extends PluginPanel {
         headerWrapper.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         northActionsContainer.setOpaque(false);
-        northActionsContainer.add(disconnectedPanel, BorderLayout.CENTER); // default
+        northActionsContainer.add(disconnectedPanel, "DISCONNECTED");
+        northActionsContainer.add(connectedPanel, "CONNECTED");
+        northCardLayout.show(northActionsContainer, "DISCONNECTED"); // default
         headerWrapper.add(northActionsContainer);
 
         wrapper.add(headerWrapper, BorderLayout.NORTH);
@@ -338,22 +341,19 @@ public class RaidPartyPanel extends PluginPanel {
 
     public void updateConnectionState(boolean connected, String passphrase) {
         SwingUtilities.invokeLater(() -> {
-            northActionsContainer.removeAll();
             centerContainer.removeAll();
 
             if (connected) {
                 currentPassphrase = passphrase;
                 // Check config for default mask state
-                try {
-                    passphraseMasked = true; // Default to masked; toggled via panel button
-                } catch (Exception ignored) {
-                }
+                // Default to masked; toggled via panel button
+                passphraseMasked = true;
                 applyPassphraseMask();
-                northActionsContainer.add(connectedPanel, BorderLayout.CENTER);
+                northCardLayout.show(northActionsContainer, "CONNECTED");
                 centerContainer.add(rosterContainer, BorderLayout.NORTH);
             } else {
                 currentPassphrase = "";
-                northActionsContainer.add(disconnectedPanel, BorderLayout.CENTER);
+                northCardLayout.show(northActionsContainer, "DISCONNECTED");
                 centerContainer.add(emptyStateLabel, BorderLayout.NORTH);
                 rosterContainer.removeAll();
                 memberCards.clear();
@@ -481,11 +481,12 @@ public class RaidPartyPanel extends PluginPanel {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean locked = plugin.isLootLocked();
                 boolean selected = plugin.getLocalLootRule() == rule;
                 if (selected) {
-                    g2.setColor(getModel().isPressed() ? pressedColor : selectedColor);
+                    g2.setColor(locked ? selectedColor.darker() : (getModel().isPressed() ? pressedColor : selectedColor));
                 } else {
-                    g2.setColor(getModel().isPressed() ? new Color(40, 40, 40) : new Color(60, 60, 60));
+                    g2.setColor(locked ? new Color(30, 30, 30) : (getModel().isPressed() ? new Color(40, 40, 40) : new Color(60, 60, 60)));
                 }
                 g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
                 g2.dispose();
@@ -500,7 +501,24 @@ public class RaidPartyPanel extends PluginPanel {
         btn.setOpaque(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                if (plugin.isLootLocked()) {
+                    btn.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+                } else {
+                    btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                }
+            }
+        });
+
         btn.addActionListener(e -> {
+            if (plugin.isLootLocked()) {
+                JOptionPane.showMessageDialog(this,
+                    "Loot rule selection is locked while inside an active raid instance.\nTeleport out or finish the raid to change your selection.",
+                    "Loot Rule Locked", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             if (rule == LootRule.FFA) {
                 int res = JOptionPane.showOptionDialog(this,
                     "FFA = Free For All\n\nThis means any loot obtained by you is not susceptible to be split between your teammates.",

@@ -97,31 +97,49 @@ public class RaidPartyPlayerCard extends JPanel {
 
     public void updateSyncData(RaidPartyPlayerSync newSync) {
         this.syncData = newSync;
-        if (!expanded) {
-            buildCard(); // Only rebuild banner if collapsed
-            return;
-        }
 
-        // Full UI injection on ClientThread for ItemManager
+        // Fetch data on ClientThread if expanded, otherwise just update banner on Swing thread
         plugin.getClientThread().invokeLater(() -> {
-            this.adapterPlayer = createAdapterPlayer(newSync);
+            if (expanded) {
+                this.adapterPlayer = createAdapterPlayer(newSync);
+            }
+            
+            // Fetch client-dependent variables on the client thread before passing to Swing thread
+            final boolean inRaid = newSync != null && newSync.isInRaid();
+            final boolean onSameWorld = newSync != null && newSync.getWorld() != 0 && newSync.getWorld() == plugin.getClient().getWorld();
+            
             SwingUtilities.invokeLater(() -> {
-                if (inventoryPanel != null)
-                    inventoryPanel.updateInventory(adapterPlayer.getInventory(), adapterPlayer.getRunesInPouch());
-                if (equipmentPanel != null)
-                    equipmentPanel.updateEquipment(adapterPlayer.getEquipment());
-                if (skillsPanel != null)
-                    skillsPanel.updateStats(adapterPlayer);
-                if (prayerPanel != null) {
-                    prayerPanel.updatePrayers(adapterPlayer.getPrayers());
-                    prayerPanel.updatePrayerRemaining(adapterPlayer.getSkillBoostedLevel(net.runelite.api.Skill.PRAYER),
-                            adapterPlayer.getSkillRealLevel(net.runelite.api.Skill.PRAYER, false));
+                if (expanded) {
+                    if (inventoryPanel != null)
+                        inventoryPanel.updateInventory(adapterPlayer.getInventory(), adapterPlayer.getRunesInPouch());
+                    if (equipmentPanel != null)
+                        equipmentPanel.updateEquipment(adapterPlayer.getEquipment());
+                    if (skillsPanel != null)
+                        skillsPanel.updateStats(adapterPlayer);
+                    if (prayerPanel != null) {
+                        prayerPanel.updatePrayers(adapterPlayer.getPrayers());
+                        prayerPanel.updatePrayerRemaining(adapterPlayer.getSkillBoostedLevel(net.runelite.api.Skill.PRAYER),
+                                adapterPlayer.getSkillRealLevel(net.runelite.api.Skill.PRAYER, false));
+                    }
                 }
 
                 // Rebuild banner visually
-                remove(0);
+                if (bannerPanel != null) {
+                    remove(bannerPanel);
+                }
                 bannerPanel = createBanner();
                 add(bannerPanel, 0);
+                
+                // Seamlessly update border color without flickering to default
+                Color borderColor = new Color(87, 80, 64);
+                if (inRaid) {
+                    borderColor = new Color(40, 160, 60); // Green
+                } else if (plugin.getConfig().indicateFarAwayMembers() && newSync != null && !onSameWorld) {
+                    borderColor = new Color(110, 60, 130); // Darker, less vibrant purple for separate worlds
+                }
+                setBorder(new CompoundBorder(
+                        new MatteBorder(2, 2, 2, 2, borderColor),
+                        new EmptyBorder(0, 0, 5, 0)));
 
                 revalidate();
                 repaint();
@@ -208,45 +226,57 @@ public class RaidPartyPlayerCard extends JPanel {
         bannerPanel = createBanner();
         add(bannerPanel);
 
+        // The border will be updated dynamically below
+        setBorder(new CompoundBorder(
+                new MatteBorder(2, 2, 2, 2, new Color(45, 45, 45)),
+                new EmptyBorder(0, 0, 5, 0)));
+
         if (expanded) {
-            setBorder(new CompoundBorder(
-                    new MatteBorder(2, 2, 2, 2, new Color(87, 80, 64)),
-                    new EmptyBorder(0, 0, 5, 0)));
 
-            plugin.getClientThread().invokeLater(() -> {
-                this.adapterPlayer = createAdapterPlayer(syncData);
 
-                SwingUtilities.invokeLater(() -> {
-                    displayPanel = new JPanel();
-                    displayPanel.setBorder(new EmptyBorder(5, 5, 0, 5));
-                    displayPanel.setOpaque(false);
+            displayPanel = new JPanel();
+            displayPanel.setBorder(new EmptyBorder(5, 5, 0, 5));
+            displayPanel.setOpaque(false);
 
-                    tabGroup = new MaterialTabGroup(displayPanel);
-                    tabGroup.setBorder(new EmptyBorder(10, 0, 4, 0));
+            tabGroup = new MaterialTabGroup(displayPanel);
+            tabGroup.setBorder(new EmptyBorder(10, 0, 4, 0));
 
-                    inventoryPanel = new PlayerInventoryPanel(adapterPlayer.getInventory(),
-                            adapterPlayer.getRunesInPouch(), itemManager);
-                    equipmentPanel = new PlayerEquipmentPanel(adapterPlayer.getEquipment(), adapterPlayer.getQuiver(),
-                            spriteManager, itemManager);
-                    skillsPanel = new PlayerSkillsPanel(adapterPlayer, true, spriteManager);
-                    prayerPanel = new PlayerPrayerPanel(adapterPlayer, spriteManager);
+            inventoryPanel = new PlayerInventoryPanel(adapterPlayer.getInventory(),
+                    adapterPlayer.getRunesInPouch(), itemManager);
+            equipmentPanel = new PlayerEquipmentPanel(adapterPlayer.getEquipment(), adapterPlayer.getQuiver(),
+                    spriteManager, itemManager);
+            skillsPanel = new PlayerSkillsPanel(adapterPlayer, true, spriteManager);
+            prayerPanel = new PlayerPrayerPanel(adapterPlayer, spriteManager);
 
-                    tabMap.clear();
-                    addTab(tabGroup, SpriteID.TAB_INVENTORY, inventoryPanel, "Inventory");
-                    addTab(tabGroup, SpriteID.TAB_EQUIPMENT, equipmentPanel, "Equipment");
-                    addTab(tabGroup, SpriteID.TAB_PRAYER, prayerPanel, "Prayers");
-                    addTab(tabGroup, SpriteID.TAB_STATS, skillsPanel, "Skills");
+            tabMap.clear();
+            addTab(tabGroup, SpriteID.TAB_INVENTORY, inventoryPanel, "Inventory");
+            addTab(tabGroup, SpriteID.TAB_EQUIPMENT, equipmentPanel, "Equipment");
+            addTab(tabGroup, SpriteID.TAB_PRAYER, prayerPanel, "Prayers");
+            addTab(tabGroup, SpriteID.TAB_STATS, skillsPanel, "Skills");
 
-                    add(tabGroup);
-                    add(displayPanel);
+            add(tabGroup);
+            add(displayPanel);
 
-                    revalidate();
-                    repaint();
-                });
-            });
-        } else {
-            setBorder(new MatteBorder(2, 2, 2, 2, new Color(87, 80, 64)));
         }
+
+        // Fetch dynamic border color asynchronously without blocking UI build
+        plugin.getClientThread().invokeLater(() -> {
+            boolean inRaid = syncData != null && syncData.isInRaid();
+            boolean onSameWorld = syncData != null && syncData.getWorld() != 0 && syncData.getWorld() == plugin.getClient().getWorld();
+            
+            SwingUtilities.invokeLater(() -> {
+                Color borderColor = new Color(87, 80, 64);
+                if (inRaid) {
+                    borderColor = new Color(40, 160, 60); // Green
+                } else if (plugin.getConfig().indicateFarAwayMembers() && syncData != null && !onSameWorld) {
+                    borderColor = new Color(110, 60, 130); // Darker, less vibrant purple for separate worlds
+                }
+                setBorder(new CompoundBorder(
+                        new MatteBorder(2, 2, 2, 2, borderColor),
+                        new EmptyBorder(0, 0, 5, 0)));
+                repaint();
+            });
+        });
 
         revalidate();
         repaint();
@@ -271,6 +301,14 @@ public class RaidPartyPlayerCard extends JPanel {
             if (spriteID == SpriteID.TAB_INVENTORY) {
                 tabGroup.select(tab);
                 tabMap.put(spriteID, true);
+            }
+            
+            RaidPartyPlayerCard.this.revalidate();
+            RaidPartyPlayerCard.this.repaint();
+            java.awt.Container parent = RaidPartyPlayerCard.this.getParent();
+            if (parent != null) {
+                parent.revalidate();
+                parent.repaint();
             }
         }));
     }
@@ -563,7 +601,15 @@ public class RaidPartyPlayerCard extends JPanel {
                     return;
                 }
                 expanded = !expanded;
-                buildCard();
+                
+                if (expanded) {
+                    plugin.getClientThread().invokeLater(() -> {
+                        adapterPlayer = createAdapterPlayer(syncData);
+                        SwingUtilities.invokeLater(() -> buildCard());
+                    });
+                } else {
+                    buildCard();
+                }
             }
 
             private void showContextMenu(MouseEvent e) {
