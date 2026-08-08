@@ -1835,7 +1835,7 @@ public class RaidPartyPlugin extends Plugin {
 
         // 1. CoX Varbit & Region check (Consider in-raid immediately upon entering lobby to lock loot)
         try {
-            if (client.getVarbitValue(Varbits.IN_RAID) == 1) {
+            if (client.getVarbitValue(Varbits.IN_RAID) == 1 && client.getVarbitValue(6386) != 0) {
                 return true;
             }
         } catch (Exception ignored) {}
