@@ -684,9 +684,9 @@ public class RaidPartyPlayerCard extends JPanel {
     private BufferedImage getDiscordAvatarFromParty() {
         if (plugin.getPartyService() == null || !plugin.getPartyService().isInParty() || memberName == null)
             return null;
-        String cleanMemberName = net.runelite.client.util.Text.removeTags(memberName).replace('\u00A0', ' ');
+        String cleanMemberName = net.runelite.client.util.Text.standardize(memberName);
         for (net.runelite.client.party.PartyMember member : plugin.getPartyService().getMembers()) {
-            if (member.getDisplayName() != null && net.runelite.client.util.Text.removeTags(member.getDisplayName()).replace('\u00A0', ' ').equalsIgnoreCase(cleanMemberName)) {
+            if (member.getDisplayName() != null && net.runelite.client.util.Text.standardize(member.getDisplayName()).equals(cleanMemberName)) {
                 return member.getAvatar();
             }
         }

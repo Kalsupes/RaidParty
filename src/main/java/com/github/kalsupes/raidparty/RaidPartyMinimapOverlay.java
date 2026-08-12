@@ -47,15 +47,15 @@ public class RaidPartyMinimapOverlay extends Overlay {
                 continue;
             }
 
-            String cleanPName = player.getName().replace('\u00A0', ' ');
+            String cleanPName = net.runelite.client.util.Text.standardize(player.getName());
             boolean isPartyMember = false;
             RaidPartyPlayerSync sync = null;
 
             // Check partyData map first (most authoritative for RaidParty sync)
             for (RaidPartyPlayerSync s : plugin.getPartyData().values()) {
                 if (s.getUsername() != null) {
-                    String sName = s.getUsername();
-                    if (cleanPName.length() == sName.length() && sName.replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                    String sName = net.runelite.client.util.Text.standardize(s.getUsername());
+                    if (sName.equals(cleanPName)) {
                         isPartyMember = true;
                         sync = s;
                         break;
@@ -65,10 +65,10 @@ public class RaidPartyMinimapOverlay extends Overlay {
 
             // Fallback to core partyService
             if (!isPartyMember && partyService != null) {
-                for (PartyMember pm : partyService.getMembers()) {
+                for (net.runelite.client.party.PartyMember pm : partyService.getMembers()) {
                     if (pm.getDisplayName() != null) {
-                        String pmName = pm.getDisplayName();
-                        if (cleanPName.length() == pmName.length() && pmName.replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                        String pmName = net.runelite.client.util.Text.standardize(pm.getDisplayName());
+                        if (pmName.equals(cleanPName)) {
                             isPartyMember = true;
                             sync = plugin.getPartyData().get(pm.getMemberId());
                             break;

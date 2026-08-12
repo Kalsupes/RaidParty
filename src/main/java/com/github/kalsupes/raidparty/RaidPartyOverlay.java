@@ -233,7 +233,7 @@ public class RaidPartyOverlay extends Overlay {
             if (p == null || p.getName() == null)
                 continue;
 
-            String cleanPName = p.getName().replace('\u00A0', ' ');
+            String cleanPName = net.runelite.client.util.Text.standardize(p.getName());
 
             boolean isLocal = (p == client.getLocalPlayer());
             boolean inParty = plugin.getPartyService() != null && plugin.getPartyService().isInParty();
@@ -248,12 +248,23 @@ public class RaidPartyOverlay extends Overlay {
             } else {
                 for (RaidPartyPlayerSync s : plugin.getPartyData().values()) {
                     if (s != null && s.getUsername() != null) {
-                        // By doing replace inside the check only if lengths match, we save tons of allocations
-                        // Ideally usernames are sanitized at source, but this is safe fallback
-                        String sName = s.getUsername();
-                        if (cleanPName.length() == sName.length() && cleanPName.equals(sName.replace('\u00A0', ' '))) {
+                        String sName = net.runelite.client.util.Text.standardize(s.getUsername());
+                        if (sName.equals(cleanPName)) {
                             syncData = s;
                             break;
+                        }
+                    }
+                }
+                
+                // Fallback to partyService names
+                if (syncData == null) {
+                    for (net.runelite.client.party.PartyMember pm : plugin.getPartyService().getMembers()) {
+                        if (pm.getDisplayName() != null) {
+                            String pmName = net.runelite.client.util.Text.standardize(pm.getDisplayName());
+                            if (pmName.equals(cleanPName)) {
+                                syncData = plugin.getPartyData().get(pm.getMemberId());
+                                break;
+                            }
                         }
                     }
                 }
@@ -263,11 +274,12 @@ public class RaidPartyOverlay extends Overlay {
                 boolean isFriendOrClan = p.isFriend() || p.isClanMember() || p.isFriendsChatMember();
                 if (!isFriendOrClan || !config.suppressOverheadForFriends()) {
                     boolean isPartyMember = (syncData != null);
-                    if (!isPartyMember && plugin.getPartyService() != null) {
-                        for (PartyMember pm : plugin.getPartyService().getMembers()) {
-                            if (pm != null && pm.getDisplayName() != null) {
-                                String pmName = pm.getDisplayName();
-                                if (cleanPName.length() == pmName.length() && cleanPName.equalsIgnoreCase(pmName.replace('\u00A0', ' '))) {
+                    
+                    if (!isPartyMember) {
+                        for (net.runelite.client.party.PartyMember pm : plugin.getPartyService().getMembers()) {
+                            if (pm.getDisplayName() != null) {
+                                String pmName = net.runelite.client.util.Text.standardize(pm.getDisplayName());
+                                if (pmName.equals(cleanPName)) {
                                     isPartyMember = true;
                                     break;
                                 }
