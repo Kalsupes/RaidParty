@@ -9,7 +9,6 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.*;
 import net.runelite.client.config.ConfigManager;
-import net.runelite.client.game.WorldService;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
@@ -45,7 +44,11 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Image;
 import java.awt.event.KeyEvent;
+import javax.swing.SwingUtilities;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 import java.time.format.DateTimeFormatter;
+import net.runelite.client.plugins.party.messages.StatusUpdate;
 import java.util.function.Supplier;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.config.Keybind;
@@ -117,6 +120,9 @@ public class RaidPartyPlugin extends Plugin {
     private RaidPartyMinimapOverlay minimapOverlay;
 
     private boolean wasInRaid = false;
+    private boolean officiallyInRaid = false;
+    private int outOfRaidTicks = 0;
+    private boolean localSyncPushed = false;
     private int reconcileTimer = 0;
 
 
@@ -127,9 +133,6 @@ public class RaidPartyPlugin extends Plugin {
     @Inject
     private KeyManager keyManager;
 
-    @Inject
-    private WorldService worldService;
-
     private RaidPartyPanel panel;
     private NavigationButton navButton;
     private boolean addedButton = false;
@@ -139,8 +142,6 @@ public class RaidPartyPlugin extends Plugin {
 
     // Ping Tracking
     private final List<BossPing> activePings = new CopyOnWriteArrayList<>();
-    private long lastLocalPingTime = 0;
-    private long lastGlobalPingReceivedTime = 0;
 
     public List<BossPing> getActivePings() {
         return activePings;
@@ -288,10 +289,11 @@ public class RaidPartyPlugin extends Plugin {
             return;
         }
 
-        configManager.setConfiguration("raidparty", "previousParty", passphrase);
-        partyService.changeParty(passphrase);
+        String sanitized = passphrase.trim().replace(" ", "-");
+        configManager.setConfiguration("raidparty", "previousParty", sanitized);
+        partyService.changeParty(sanitized);
         
-        SwingUtilities.invokeLater(() -> panel.updateConnectionState(true, passphrase));
+        SwingUtilities.invokeLater(() -> panel.updateConnectionState(true, sanitized));
 
         clientThread.invokeLater(() -> {
             String localName = getLocalPlayerName();
@@ -305,7 +307,6 @@ public class RaidPartyPlugin extends Plugin {
         partyService.changeParty(null);
         panel.updateConnectionState(false, "");
         partyData.clear();
-        memberHeartbeats.clear();
         activePings.clear();
         if (panel != null) {
             panel.removeAllMembers();
@@ -315,9 +316,9 @@ public class RaidPartyPlugin extends Plugin {
     @Subscribe
     public void onPartyChanged(net.runelite.client.events.PartyChanged event) {
         forceFullSync = true;
+        localSyncPushed = false;
         lastSentUsername = null;
         partyData.clear();
-        memberHeartbeats.clear();
         activePings.clear();
         if (panel != null) {
             panel.removeAllMembers();
@@ -358,6 +359,49 @@ public class RaidPartyPlugin extends Plugin {
                 panel.removeMember(sync.getUsername());
             }
         }
+    }
+
+    @Subscribe
+    public void onStatusUpdate(StatusUpdate event) {
+        if (partyService == null || partyService.getLocalMember() == null) return;
+        if (event.getMemberId() == partyService.getLocalMember().getMemberId()) return;
+
+        RaidPartyPlayerSync existing = partyData.get(event.getMemberId());
+        if (existing == null) {
+            existing = new RaidPartyPlayerSync();
+            existing.setMemberId(event.getMemberId());
+            partyData.put(event.getMemberId(), existing);
+        }
+
+        if (event.getCharacterName() != null) {
+            existing.setUsername(event.getCharacterName());
+        }
+        if (event.getHealthCurrent() != null) {
+            existing.setHp(event.getHealthCurrent());
+        }
+        if (event.getHealthMax() != null) {
+            existing.setMaxHp(event.getHealthMax());
+        }
+        if (event.getPrayerCurrent() != null) {
+            existing.setPrayer(event.getPrayerCurrent());
+        }
+        if (event.getPrayerMax() != null) {
+            existing.setMaxPrayer(event.getPrayerMax());
+        }
+        if (event.getRunEnergy() != null) {
+            existing.setRun(event.getRunEnergy());
+        }
+        if (event.getSpecEnergy() != null) {
+            existing.setSpec(event.getSpecEnergy());
+        }
+        if (event.getVengeanceActive() != null) {
+            existing.setVengeanceActive(event.getVengeanceActive());
+        }
+        
+        final RaidPartyPlayerSync finalExisting = existing;
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (panel != null) panel.onPlayerSync(finalExisting);
+        });
     }
 
     public String getLocalPlayerName() {
@@ -597,13 +641,15 @@ public class RaidPartyPlugin extends Plugin {
 
         if (soundId != -1) {
             final int sid = soundId;
-            final int targetVol = (int) (127 * (config.pingVolume() / 100.0f));
             clientThread.invokeLater(() -> {
                 net.runelite.api.Preferences preferences = client.getPreferences();
-                int previousVolume = preferences.getSoundEffectVolume();
-                preferences.setSoundEffectVolume(targetVol);
+                int baseVolume = preferences.getSoundEffectVolume();
+                if (baseVolume <= 0) return; // Muted in game settings
+
+                int targetVol = (int) (baseVolume * (config.pingVolume() / 100.0f));
+                if (targetVol > 127) targetVol = 127;
+                
                 client.playSoundEffect(sid, targetVol);
-                preferences.setSoundEffectVolume(previousVolume);
             });
         }
     }
@@ -633,30 +679,28 @@ public class RaidPartyPlugin extends Plugin {
             }
         }
 
-        if (client.getLocalPlayer() == null || client.getLocalPlayer().getWorldLocation() == null) {
-            return;
-        }
+        clientThread.invokeLater(() -> {
+            if (client.getLocalPlayer() == null || client.getLocalPlayer().getWorldLocation() == null) {
+                return;
+            }
 
-        // 1. Check if the sender is with us on our world / in our raid instance
-        RaidPartyPlayerSync senderSync = partyData.get(event.getMemberId());
-        if (senderSync != null && !isPartyMemberWithLocalPlayer(senderSync)) {
-            return; // Ignore pings from players who are away / on another world / not in our raid
-        }
+            // 1. Check if the sender is with us on our world / in our raid instance
+            RaidPartyPlayerSync senderSync = partyData.get(event.getMemberId());
+            if (senderSync != null && !isPartyMemberWithLocalPlayer(senderSync)) {
+                return; // Ignore pings from players who are away / on another world / not in our raid
+            }
 
-        if (client.getLocalPlayer() == null || client.getLocalPlayer().getWorldLocation() == null) {
-            return;
-        }
+            WorldPoint wp = new WorldPoint(event.getX(), event.getY(), event.getPlane());
 
-        WorldPoint wp = new WorldPoint(event.getX(), event.getY(), event.getPlane());
+            // 2. Check distance from our player's location (max 50 tiles and same plane)
+            if (wp.getPlane() != client.getPlane() || wp.distanceTo(client.getLocalPlayer().getWorldLocation()) > 50) {
+                return; // Ignore pings that are too far away or on a different height/plane
+            }
 
-        // 2. Check distance from our player's location (max 50 tiles and same plane)
-        if (wp.getPlane() != client.getPlane() || wp.distanceTo(client.getLocalPlayer().getWorldLocation()) > 50) {
-            return; // Ignore pings that are too far away or on a different height/plane
-        }
-
-        activePings.add(new BossPing(wp, event.getPingType(), event.getTargetType(), event.getTargetIndex(),
-                System.currentTimeMillis() + 2000));
-        playPingSound(event.getPingType(), event.getTargetType());
+            activePings.add(new BossPing(wp, event.getPingType(), event.getTargetType(), event.getTargetIndex(),
+                    System.currentTimeMillis() + 2000));
+            playPingSound(event.getPingType(), event.getTargetType());
+        });
     }
 
     @Subscribe
@@ -740,7 +784,6 @@ public class RaidPartyPlugin extends Plugin {
     private long localActivePrayers = -1L;
     private int localPouchHash = -1;
     private int keepaliveTicks = 0;
-    private final Map<Long, Integer> memberHeartbeats = new HashMap<>();
     private boolean needsPartySync = false;
     private int partySyncTimer = 0;
     private int evidenceScreenshotTicks = -1;
@@ -775,8 +818,11 @@ public class RaidPartyPlugin extends Plugin {
         sync.setMaxHp(client.getRealSkillLevel(Skill.HITPOINTS));
         sync.setPrayer(client.getBoostedSkillLevel(Skill.PRAYER));
         sync.setMaxPrayer(client.getRealSkillLevel(Skill.PRAYER));
-        sync.setSpec(client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT));
-        sync.setRun(client.getEnergy());
+        sync.setSpec(client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT) / 10);
+        sync.setRun(client.getEnergy() / 100);
+        if (client.getAccountType() != null) {
+            sync.setAccountType(client.getAccountType().ordinal());
+        }
 
         // Inventory
         net.runelite.api.ItemContainer invContainer = client.getItemContainer(InventoryID.INVENTORY);
@@ -839,13 +885,16 @@ public class RaidPartyPlugin extends Plugin {
         sync.setReadyState(localReadyState);
         
         // Add Raid Status
-        sync.setInRaid(isPlayerInRaid());
+        sync.setInRaid(cachedInRaid);
 
         cachedLocalSync = sync;
 
-        // Instantly push to UI locally
+        // Instantly push to UI locally if a stat changed
         if (panel != null && name != null && partyService.isInParty()) {
-            panel.onPlayerSync(cachedLocalSync);
+            if (needsPartySync || !localSyncPushed) {
+                panel.onPlayerSync(cachedLocalSync);
+                localSyncPushed = true;
+            }
         }
     }
 
@@ -890,7 +939,6 @@ public class RaidPartyPlugin extends Plugin {
     @Subscribe
     public void onGameTick(GameTick event) {
 
-
         if (evidenceScreenshotTicks > 0) {
             evidenceScreenshotTicks--;
             if (evidenceScreenshotTicks == 0) {
@@ -900,55 +948,92 @@ public class RaidPartyPlugin extends Plugin {
         }
 
         boolean inRaidNow = isPlayerInRaid();
-        if (wasInRaid != inRaidNow && partyService != null && partyService.isInParty()) {
-            resetReadyState();
-            if (!wasInRaid && inRaidNow && (config.printRaidStartRules() || config.takeRaidStartScreenshot())) {
-                triggerRaidStartEvidence();
-            }
-        }
-        wasInRaid = inRaidNow;
-        cachedInRaid = inRaidNow;
-        reconcileTimer++;
-        if (reconcileTimer >= 10 && partyService != null && partyService.isInParty()) {
-            reconcileTimer = 0;
-            java.util.Set<Long> activeIds = new java.util.HashSet<>();
-            if (partyService.getLocalMember() != null) {
-                activeIds.add(partyService.getLocalMember().getMemberId());
-            }
-            int nowTicks = client != null ? client.getTickCount() : 0;
-            for (net.runelite.client.party.PartyMember pm : partyService.getMembers()) {
-                long mId = pm.getMemberId();
-                Integer lastSeen = memberHeartbeats.get(mId);
-                // If remote member hasn't sent a sync packet in 70 ticks (~42 seconds), time them out!
-                if (lastSeen != null && nowTicks - lastSeen > 70) {
-                    continue;
+        if (inRaidNow) {
+            outOfRaidTicks = 0;
+            if (!officiallyInRaid && partyService != null && partyService.isInParty()) {
+                resetReadyState();
+                officiallyInRaid = true;
+                if (config.printRaidStartRules() || config.takeRaidStartScreenshot()) {
+                    triggerRaidStartEvidence();
                 }
-                activeIds.add(mId);
-            }
-
-            java.util.List<Long> ghostIds = new java.util.ArrayList<>();
-            for (Long memberId : new java.util.HashSet<>(partyData.keySet())) {
-                if (!activeIds.contains(memberId)) {
-                    ghostIds.add(memberId);
-                }
-            }
-
-            for (Long ghostId : ghostIds) {
-                RaidPartyPlayerSync ghostSync = partyData.remove(ghostId);
-                memberHeartbeats.remove(ghostId);
+                needsPartySync = true;
+                forceFullSync = true;
+                partySyncTimer = 0;
+                updateCachedLocalSync();
                 if (panel != null) {
-                    panel.removeMemberById(ghostId);
-                    if (ghostSync != null && ghostSync.getUsername() != null) {
-                        panel.removeMember(ghostSync.getUsername());
+                    SwingUtilities.invokeLater(() -> panel.refreshRosterContainer());
+                }
+            }
+        } else {
+            if (officiallyInRaid) {
+                outOfRaidTicks++;
+                if (outOfRaidTicks > 15) { // ~9 seconds out of raid to officially drop the lock
+                    officiallyInRaid = false;
+                    needsPartySync = true;
+                    forceFullSync = true;
+                    partySyncTimer = 0;
+                    updateCachedLocalSync();
+                    if (panel != null) {
+                        SwingUtilities.invokeLater(() -> panel.refreshRosterContainer());
                     }
                 }
             }
-
+        }
+        
+        cachedInRaid = officiallyInRaid;
+        reconcileTimer++;
+        if (reconcileTimer >= 10 && partyService != null && partyService.isInParty()) {
+            reconcileTimer = 0;
+            java.util.Iterator<java.util.Map.Entry<Long, RaidPartyPlayerSync>> it = partyData.entrySet().iterator();
+            while (it.hasNext()) {
+                java.util.Map.Entry<Long, RaidPartyPlayerSync> entry = it.next();
+                Long memberId = entry.getKey();
+                if (partyService.getMemberById(memberId) == null && (partyService.getLocalMember() == null || partyService.getLocalMember().getMemberId() != memberId)) {
+                    RaidPartyPlayerSync ghostSync = entry.getValue();
+                    if (panel != null) {
+                        panel.removeMemberById(memberId);
+                        if (ghostSync != null && ghostSync.getUsername() != null) {
+                            panel.removeMember(ghostSync.getUsername());
+                        }
+                    }
+                    it.remove();
+                }
+            }
             java.util.Set<String> validUsernames = new java.util.HashSet<>();
             String locName = getLocalPlayerName();
-            if (locName != null) validUsernames.add(locName.toLowerCase().replace("\u00A0", " "));
+            if (locName != null) {
+                String cleanLoc = locName.trim();
+                if (!cleanLoc.isEmpty() && !cleanLoc.equalsIgnoreCase("<unknown>")) {
+                    validUsernames.add(cleanLoc.toLowerCase().replace("\u00A0", " "));
+                }
+            }
             for (RaidPartyPlayerSync s : partyData.values()) {
-                if (s.getUsername() != null) validUsernames.add(s.getUsername().toLowerCase().replace("\u00A0", " "));
+                if (s.getUsername() != null) {
+                    String cleanName = s.getUsername().trim();
+                    if (!cleanName.isEmpty() && !cleanName.equalsIgnoreCase("<unknown>")) {
+                        validUsernames.add(cleanName.toLowerCase().replace("\u00A0", " "));
+                    }
+                }
+            }
+            
+            // BACKWARDS COMPATIBILITY: Make sure any active party members with a name are valid,
+            // even if they haven't sent a RaidParty payload yet.
+            for (net.runelite.client.party.PartyMember pm : partyService.getMembers()) {
+                if (pm.getDisplayName() != null && !pm.getDisplayName().isEmpty()) {
+                    String cleanName = pm.getDisplayName().trim();
+                    if (!cleanName.isEmpty() && !cleanName.equalsIgnoreCase("<unknown>")) {
+                        validUsernames.add(cleanName.toLowerCase().replace("\u00A0", " "));
+                        if (!partyData.containsKey(pm.getMemberId())) {
+                            RaidPartyPlayerSync dummy = new RaidPartyPlayerSync();
+                            dummy.setMemberId(pm.getMemberId());
+                            dummy.setUsername(pm.getDisplayName());
+                            partyData.put(pm.getMemberId(), dummy);
+                            if (panel != null) {
+                                SwingUtilities.invokeLater(() -> panel.onPlayerSync(dummy));
+                            }
+                        }
+                    }
+                }
             }
             if (panel != null) panel.reconcileMembers(validUsernames);
         }
@@ -970,7 +1055,7 @@ public class RaidPartyPlugin extends Plugin {
                 needsPartySync = true;
             }
 
-            int run = client.getEnergy();
+            int run = client.getEnergy() / 100;
             int spec = client.getVarpValue(VarPlayer.SPECIAL_ATTACK_PERCENT);
             int combat = client.getLocalPlayer().getCombatLevel();
             int pouchHash = Arrays.hashCode(cachedLocalSync.getRunePouchIds()) * 31 + Arrays.hashCode(cachedLocalSync.getRunePouchQtys());
@@ -1012,7 +1097,6 @@ public class RaidPartyPlugin extends Plugin {
             }
         } else {
             partyData.clear();
-            memberHeartbeats.clear();
             forceFullSync = true;
             lastSentUsername = null;
         }
@@ -1026,6 +1110,7 @@ public class RaidPartyPlugin extends Plugin {
     private Integer lastSentRun;
     private Integer lastSentWorld;
     private Integer lastSentCombatLevel;
+    private Integer lastSentAccountType;
     private String lastSentUsername;
     private Integer lastSentReadyState;
     private Long lastSentActivePrayers;
@@ -1054,6 +1139,11 @@ public class RaidPartyPlugin extends Plugin {
         RaidPartyPlayerSync local = cachedLocalSync;
         if (local == null || partyService == null || !partyService.isInParty())
             return;
+            
+        String rawName = local.getUsername();
+        if (rawName == null || rawName.trim().isEmpty() || rawName.trim().equalsIgnoreCase("<unknown>")) {
+            return;
+        }
 
         forceSyncCounter++;
         boolean fullSync = (forceFullSync || lastSentUsername == null || forceSyncCounter >= 150);
@@ -1095,6 +1185,10 @@ public class RaidPartyPlugin extends Plugin {
         if (fullSync || !Objects.equals(local.getRawCombatLevel(), lastSentCombatLevel)) {
             syncCopy.setCombatLevel(local.getRawCombatLevel());
             lastSentCombatLevel = local.getRawCombatLevel();
+        }
+        if (fullSync || !Objects.equals(local.getAccountType(), lastSentAccountType)) {
+            syncCopy.setAccountType(local.getAccountType());
+            lastSentAccountType = local.getAccountType();
         }
         if (fullSync || !Objects.equals(local.getUsername(), lastSentUsername)) {
             syncCopy.setUsername(local.getUsername());
@@ -1212,6 +1306,7 @@ public class RaidPartyPlugin extends Plugin {
         if (newSync.getRawRun() == null) newSync.setRun(oldSync.getRawRun());
         if (newSync.getRawWorld() == null) newSync.setWorld(oldSync.getRawWorld());
         if (newSync.getRawCombatLevel() == null) newSync.setCombatLevel(oldSync.getRawCombatLevel());
+        if (newSync.getRawAccountType() == null) newSync.setAccountType(oldSync.getAccountType());
         if (newSync.getUsername() == null) newSync.setUsername(oldSync.getUsername());
         if (newSync.getRawReadyState() == null) newSync.setReadyState(oldSync.getRawReadyState());
         if (newSync.getRawActivePrayers() == null) newSync.setActivePrayers(oldSync.getRawActivePrayers());
@@ -1792,8 +1887,6 @@ public class RaidPartyPlugin extends Plugin {
         }
     }
 
-    // Reflection removed: getBoardVarcStrIds method removed as it is forbidden by RuneLite and broken in newer versions
-
     public boolean isPartyMemberWithLocalPlayer(RaidPartyPlayerSync syncData) {
         if (syncData == null || client.getLocalPlayer() == null) return false;
         if (partyService != null && partyService.getLocalMember() != null) {
@@ -1824,9 +1917,8 @@ public class RaidPartyPlugin extends Plugin {
                 return false; // On same world, but NOT inside our instanced raid/room!
             }
         }
-        // (Hybrid Board Check removed: VarClientStr reflection was forbidden and broken)
 
-        // 4. Fallback (not inside raid instance, no active party board registered): return true if on our exact same world
+        // 3. Fallback (not inside raid instance, no active party board registered): return true if on our exact same world
         return true;
     }
 
@@ -1835,7 +1927,7 @@ public class RaidPartyPlugin extends Plugin {
 
         // 1. CoX Varbit & Region check (Consider in-raid immediately upon entering lobby to lock loot)
         try {
-            if (client.getVarbitValue(Varbits.IN_RAID) == 1) {
+            if (client.getVarbitValue(Varbits.IN_RAID) == 1 && client.isInInstancedRegion() && client.getVarbitValue(6386) != 0) {
                 return true;
             }
         } catch (Exception ignored) {}
@@ -1843,31 +1935,39 @@ public class RaidPartyPlugin extends Plugin {
         // 2. ToB Varbit check (2=Inside/Spectator, 3=Dead Spectating)
         try {
             int tobState = client.getVarbitValue(Varbits.THEATRE_OF_BLOOD);
-            if (tobState == 2 || tobState == 3) return true;
+            if ((tobState == 2 || tobState == 3) && client.isInInstancedRegion()) return true;
         } catch (Exception ignored) {}
 
-        // 3. ToA Varbit check (481 is TOA_RAID in RuneLite)
-        try {
-            if (client.getVarbitValue(481) > 0) return true;
-        } catch (Exception ignored) {}
+        // 3. (Removed ToA Varbit check because TOA_RAID_LEVEL persists outside the raid)
 
-        // 4. Instanced Region ID checks
+        // 4. Region ID checks (Supports both Instanced and Static regions)
+        int instancedRegion = -1;
         if (client.isInInstancedRegion() && client.getLocalPlayer().getLocalLocation() != null) {
             net.runelite.api.coords.WorldPoint wp = net.runelite.api.coords.WorldPoint.fromLocalInstance(client, client.getLocalPlayer().getLocalLocation());
             if (wp != null) {
-                int region = wp.getRegionID();
-                // ToA Rooms (Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
-                if (region == 14160 || region == 14162 || region == 14686 || region == 15186 || region == 15700 || region == 15184 || region == 15696 || region == 14164) {
-                    return true;
-                }
-                // ToB Rooms (Maiden, Bloat, Nylocas, Sotetseg, Xarpus, Verzik, Loot)
-                if (region == 12611 || region == 12612 || region == 12613 || region == 13122 || region == 13123 || region == 13125 || region == 12867) {
-                    return true;
-                }
-                // CoX Rooms (Olm room specifically if varbits delayed, excluding gearing lobby 13138)
-                if (region == 12889) {
-                    return true;
-                }
+                instancedRegion = wp.getRegionID();
+            }
+        }
+        int worldRegion = client.getLocalPlayer().getWorldLocation().getRegionID();
+
+        int[] regionsToCheck = {instancedRegion, worldRegion};
+        for (int region : regionsToCheck) {
+            if (region == -1) continue;
+
+            // ToA Rooms (Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
+            if (region == 14160 || region == 14162 || region == 14163 || region == 14164 || 
+                region == 14686 || region == 14687 || region == 14688 || 
+                region == 15184 || region == 15186 || region == 15187 || region == 15188 || 
+                region == 15696 || region == 15698 || region == 15699 || region == 15700) {
+                return true;
+            }
+            // ToB Rooms (Maiden, Bloat, Nylocas, Sotetseg, Xarpus, Verzik, Loot)
+            if (region == 12611 || region == 12612 || region == 12613 || region == 13122 || region == 13123 || region == 13125 || region == 12867) {
+                return true;
+            }
+            // CoX Rooms (Olm room specifically if varbits delayed, excluding gearing lobby 13138)
+            if (region == 12889) {
+                return true;
             }
         }
 

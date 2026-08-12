@@ -40,7 +40,9 @@ public class RaidPartyMinimapOverlay extends Overlay {
             return null;
         }
 
-        for (Player player : client.getPlayers()) {
+        java.util.List<net.runelite.api.Player> players = client.getPlayers();
+        for (int pIdx = 0; pIdx < players.size(); pIdx++) {
+            Player player = players.get(pIdx);
             if (player == null || player == client.getLocalPlayer() || player.getName() == null) {
                 continue;
             }
@@ -51,20 +53,26 @@ public class RaidPartyMinimapOverlay extends Overlay {
 
             // Check partyData map first (most authoritative for RaidParty sync)
             for (RaidPartyPlayerSync s : plugin.getPartyData().values()) {
-                if (s.getUsername() != null && s.getUsername().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
-                    isPartyMember = true;
-                    sync = s;
-                    break;
+                if (s.getUsername() != null) {
+                    String sName = s.getUsername();
+                    if (cleanPName.length() == sName.length() && sName.replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                        isPartyMember = true;
+                        sync = s;
+                        break;
+                    }
                 }
             }
 
             // Fallback to core partyService
             if (!isPartyMember && partyService != null) {
                 for (PartyMember pm : partyService.getMembers()) {
-                    if (pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
-                        isPartyMember = true;
-                        sync = plugin.getPartyData().get(pm.getMemberId());
-                        break;
+                    if (pm.getDisplayName() != null) {
+                        String pmName = pm.getDisplayName();
+                        if (cleanPName.length() == pmName.length() && pmName.replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
+                            isPartyMember = true;
+                            sync = plugin.getPartyData().get(pm.getMemberId());
+                            break;
+                        }
                     }
                 }
             }

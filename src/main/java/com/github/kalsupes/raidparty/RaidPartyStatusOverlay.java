@@ -91,11 +91,11 @@ public class RaidPartyStatusOverlay extends Overlay
             }
             if (config.statusOverlayStamina())
             {
-                renderPlayerOverlay(graphics, player, String.valueOf(partyData.getRun() / 100), COLOR_STAMINA, renderIx++);
+                renderPlayerOverlay(graphics, player, String.valueOf(partyData.getRun()), COLOR_STAMINA, renderIx++);
             }
             if (config.statusOverlaySpec())
             {
-                renderPlayerOverlay(graphics, player, String.valueOf(partyData.getSpec() / 10), COLOR_SPEC, renderIx);
+                renderPlayerOverlay(graphics, player, String.valueOf(partyData.getSpec()), COLOR_SPEC, renderIx);
             }
             if (config.statusOverlayVeng() && partyData.isVengeanceActive())
             {

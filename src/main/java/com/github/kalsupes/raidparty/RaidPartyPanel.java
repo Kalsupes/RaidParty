@@ -388,6 +388,12 @@ public class RaidPartyPanel extends PluginPanel {
         SwingUtilities.invokeLater(() -> {
             String username = sync.getUsername();
             if (username == null) return;
+            
+            String rawName = username.trim();
+            if (rawName.isEmpty() || rawName.equalsIgnoreCase("<unknown>")) {
+                return;
+            }
+
             String sanitized = username.toLowerCase().replace("\u00A0", " ");
             if (memberCards.containsKey(sanitized)) {
                 memberCards.get(sanitized).updateSyncData(sync);
@@ -405,7 +411,7 @@ public class RaidPartyPanel extends PluginPanel {
         });
     }
 
-    private void refreshRosterContainer() {
+    public void refreshRosterContainer() {
         rosterContainer.removeAll();
         for (RaidPartyPlayerCard card : memberCards.values()) {
             rosterContainer.add(card);
@@ -463,6 +469,12 @@ public class RaidPartyPanel extends PluginPanel {
     public void onPlayerSync(RaidPartyPlayerSync sync) {
         if (sync == null || sync.getUsername() == null)
             return;
+            
+        String rawName = sync.getUsername().trim();
+        if (rawName.isEmpty() || rawName.equalsIgnoreCase("<unknown>")) {
+            return;
+        }
+
         SwingUtilities.invokeLater(() -> {
             String sanitized = sync.getUsername().toLowerCase().replace("\u00A0", " ");
             RaidPartyPlayerCard card = memberCards.get(sanitized);

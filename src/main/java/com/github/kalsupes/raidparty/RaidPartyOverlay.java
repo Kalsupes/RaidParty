@@ -227,9 +227,13 @@ public class RaidPartyOverlay extends Overlay {
         graphics.setStroke(originalStroke);
 
         // --- Low HP Player Glow ---
-        for (net.runelite.api.Player p : client.getPlayers()) {
+        java.util.List<net.runelite.api.Player> players = client.getPlayers();
+        for (int pIdx = 0; pIdx < players.size(); pIdx++) {
+            net.runelite.api.Player p = players.get(pIdx);
             if (p == null || p.getName() == null)
                 continue;
+
+            String cleanPName = p.getName().replace('\u00A0', ' ');
 
             boolean isLocal = (p == client.getLocalPlayer());
             boolean inParty = plugin.getPartyService() != null && plugin.getPartyService().isInParty();
@@ -242,12 +246,15 @@ public class RaidPartyOverlay extends Overlay {
             if (isLocal) {
                 syncData = plugin.getLocalPlayerSync();
             } else {
-                String pName = p.getName();
                 for (RaidPartyPlayerSync s : plugin.getPartyData().values()) {
-                    if (s != null && s.getUsername() != null && pName != null
-                            && pName.replace('\u00A0', ' ').equals(s.getUsername().replace('\u00A0', ' '))) {
-                        syncData = s;
-                        break;
+                    if (s != null && s.getUsername() != null) {
+                        // By doing replace inside the check only if lengths match, we save tons of allocations
+                        // Ideally usernames are sanitized at source, but this is safe fallback
+                        String sName = s.getUsername();
+                        if (cleanPName.length() == sName.length() && cleanPName.equals(sName.replace('\u00A0', ' '))) {
+                            syncData = s;
+                            break;
+                        }
                     }
                 }
             }
@@ -257,11 +264,13 @@ public class RaidPartyOverlay extends Overlay {
                 if (!isFriendOrClan || !config.suppressOverheadForFriends()) {
                     boolean isPartyMember = (syncData != null);
                     if (!isPartyMember && plugin.getPartyService() != null) {
-                        String cleanPName = p.getName().replace('\u00A0', ' ');
                         for (PartyMember pm : plugin.getPartyService().getMembers()) {
-                            if (pm != null && pm.getDisplayName() != null && pm.getDisplayName().replace('\u00A0', ' ').equalsIgnoreCase(cleanPName)) {
-                                isPartyMember = true;
-                                break;
+                            if (pm != null && pm.getDisplayName() != null) {
+                                String pmName = pm.getDisplayName();
+                                if (cleanPName.length() == pmName.length() && cleanPName.equalsIgnoreCase(pmName.replace('\u00A0', ' '))) {
+                                    isPartyMember = true;
+                                    break;
+                                }
                             }
                         }
                     }

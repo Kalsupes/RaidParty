@@ -89,9 +89,9 @@ public interface RaidPartyConfig extends Config {
         return java.awt.Color.decode("#FFFF00");
     }
 
-    @ConfigItem(keyName = "cautionPingSound", name = "Caution Ping Sound ID", description = "Sound Effect ID for Caution pings (Default: 2269)", position = 6, section = pingSection)
+    @ConfigItem(keyName = "cautionPingSound", name = "Caution Ping Sound ID", description = "Sound Effect ID for Caution pings (Default: 2266)", position = 6, section = pingSection)
     default int cautionPingSound() {
-        return 2269;
+        return 2266;
     }
 
     // --- Danger ---
@@ -105,9 +105,9 @@ public interface RaidPartyConfig extends Config {
         return java.awt.Color.decode("#FF0000");
     }
 
-    @ConfigItem(keyName = "dangerPingSound", name = "Danger Ping Sound ID", description = "Sound Effect ID for Danger pings (Default: 2268)", position = 9, section = pingSection)
+    @ConfigItem(keyName = "dangerPingSound", name = "Danger Ping Sound ID", description = "Sound Effect ID for Danger pings (Default: 2266)", position = 9, section = pingSection)
     default int dangerPingSound() {
-        return 2268;
+        return 2266;
     }
 
     // --- Resource ---

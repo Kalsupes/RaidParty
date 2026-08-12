@@ -57,6 +57,9 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     @SerializedName(value = "u", alternate = {"username"})
     private String username;
 
+    @SerializedName(value = "at", alternate = {"accountType"})
+    private Integer accountType;
+
     // Ready Check: 0=unchecked, 1=ready, 2=not ready
     @SerializedName(value = "rs", alternate = {"readyState"})
     private Integer readyState;
@@ -130,6 +133,7 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     public int getRun() { return run != null ? run : 0; }
     public int getWorld() { return world != null ? world : 0; }
     public int getCombatLevel() { return combatLevel != null ? combatLevel : 0; }
+    public int getAccountType() { return accountType != null ? accountType : 0; }
     public int getReadyState() { return readyState != null ? readyState : 0; }
     public long getActivePrayers() { return activePrayers != null ? activePrayers : 0L; }
     public int getStamina() { return stamina != null ? stamina : 0; }
@@ -155,6 +159,7 @@ public class RaidPartyPlayerSync extends PartyMemberMessage {
     public Integer getRawRun() { return run; }
     public Integer getRawWorld() { return world; }
     public Integer getRawCombatLevel() { return combatLevel; }
+    public Integer getRawAccountType() { return accountType; }
     public Integer getRawReadyState() { return readyState; }
     public Long getRawActivePrayers() { return activePrayers; }
     public Integer getRawStamina() { return stamina; }

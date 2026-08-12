@@ -58,6 +58,38 @@ public class RaidPartyPlayerCard extends JPanel {
     private final String memberName;
     private final boolean isHost;
 
+    private static ImageIcon cachedHpIcon = null;
+    private static ImageIcon cachedPrayIcon = null;
+    private static ImageIcon cachedSpecIcon = null;
+    private static ImageIcon cachedRunIcon = null;
+    private static ImageIcon cachedStaminaIcon = null;
+
+    private void loadStatIcons() {
+        if (cachedHpIcon == null) {
+            BufferedImage hpImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.HITPOINTS);
+            if (hpImg != null) cachedHpIcon = new ImageIcon(ImageUtil.resizeImage(hpImg, 15, 15));
+        }
+        if (cachedPrayIcon == null) {
+            BufferedImage prayImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.PRAYER);
+            if (prayImg != null) cachedPrayIcon = new ImageIcon(ImageUtil.resizeImage(prayImg, 15, 15));
+        }
+        if (cachedSpecIcon == null) {
+            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_SPECIAL_ICON, 0, img -> {
+                if (img != null) cachedSpecIcon = new ImageIcon(ImageUtil.resizeImage(img, 15, 15));
+            });
+        }
+        if (cachedRunIcon == null) {
+            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON, 0, img -> {
+                if (img != null) cachedRunIcon = new ImageIcon(ImageUtil.resizeImage(img, 15, 15));
+            });
+        }
+        if (cachedStaminaIcon == null) {
+            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON_SLOWED_DEPLETION, 0, img -> {
+                if (img != null) cachedStaminaIcon = new ImageIcon(ImageUtil.resizeImage(img, 15, 15));
+            });
+        }
+    }
+
     private boolean expanded = false;
     private RaidPartyPlayerSync syncData;
     private PartyPlayer adapterPlayer;
@@ -522,58 +554,42 @@ public class RaidPartyPlayerCard extends JPanel {
             statsRow.setOpaque(false);
             statsRow.setBorder(new EmptyBorder(4, 0, 0, 0));
 
+            loadStatIcons();
+
             int hp = syncData.getHp();
             int maxHp = syncData.getMaxHp();
             Color hpCol = hp < maxHp / 3 ? Color.RED : HP_RED;
 
-            BufferedImage hpImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.HITPOINTS);
-            BufferedImage prayImg = plugin.getSkillIconManager().getSkillImage(net.runelite.api.Skill.PRAYER);
-
-            if (hpImg != null) {
-                BufferedImage resizedHp = ImageUtil.resizeImage(hpImg, 15, 15);
-                statsRow.add(createStatCell(new ImageIcon(resizedHp), hp, hpCol));
+            if (cachedHpIcon != null) {
+                statsRow.add(createStatCell(cachedHpIcon, hp, hpCol));
             } else {
                 statsRow.add(createStatCell("\u2764", hp, hpCol));
             }
 
-            if (prayImg != null) {
-                BufferedImage resizedPray = ImageUtil.resizeImage(prayImg, 15, 15);
-                statsRow.add(createStatCell(new ImageIcon(resizedPray), syncData.getPrayer(), PRAYER_AQUA));
+            if (cachedPrayIcon != null) {
+                statsRow.add(createStatCell(cachedPrayIcon, syncData.getPrayer(), PRAYER_AQUA));
             } else {
                 statsRow.add(createStatCell("\u2728", syncData.getPrayer(), PRAYER_AQUA));
             }
 
-            JPanel specCell = createStatCell("\u2694", syncData.getSpec() / 10, SPEC_YELLOW);
+            JPanel specCell;
+            if (cachedSpecIcon != null) {
+                specCell = createStatCell(cachedSpecIcon, syncData.getSpec(), SPEC_YELLOW);
+            } else {
+                specCell = createStatCell("\u2694", syncData.getSpec(), SPEC_YELLOW);
+            }
             statsRow.add(specCell);
-            plugin.getSpriteManager().getSpriteAsync(net.runelite.api.SpriteID.MINIMAP_ORB_SPECIAL_ICON, 0, img -> {
-                SwingUtilities.invokeLater(() -> {
-                    JLabel iconLbl = (JLabel) specCell.getComponent(0);
-                    if (img != null) {
-                        BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
-                        iconLbl.setIcon(new ImageIcon(resizedImg));
-                        iconLbl.setText(null);
-                    }
-                });
-            });
 
             boolean hasStamina = syncData.getStamina() > 0;
-            JPanel runCell = createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, hasStamina ? STAMINA_ORANGE : RUN_ORANGE);
+            JPanel runCell;
+            if (hasStamina && cachedStaminaIcon != null) {
+                runCell = createStatCell(cachedStaminaIcon, syncData.getRun(), STAMINA_ORANGE);
+            } else if (!hasStamina && cachedRunIcon != null) {
+                runCell = createStatCell(cachedRunIcon, syncData.getRun(), RUN_ORANGE);
+            } else {
+                runCell = createStatCell("\uD83C\uDFC3", syncData.getRun(), hasStamina ? STAMINA_ORANGE : RUN_ORANGE);
+            }
             statsRow.add(runCell);
-            
-            int runSpriteId = hasStamina 
-                    ? net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON_SLOWED_DEPLETION 
-                    : net.runelite.api.SpriteID.MINIMAP_ORB_RUN_ICON;
-
-            plugin.getSpriteManager().getSpriteAsync(runSpriteId, 0, img -> {
-                SwingUtilities.invokeLater(() -> {
-                    JLabel iconLbl = (JLabel) runCell.getComponent(0);
-                    if (img != null) {
-                        BufferedImage resizedImg = ImageUtil.resizeImage(img, 15, 15);
-                        iconLbl.setIcon(new ImageIcon(resizedImg));
-                        iconLbl.setText(null);
-                    }
-                });
-            });
 
             JPanel bannerWrap = new JPanel(new BorderLayout());
             bannerWrap.setOpaque(false);
@@ -666,10 +682,11 @@ public class RaidPartyPlayerCard extends JPanel {
     }
 
     private BufferedImage getDiscordAvatarFromParty() {
-        if (plugin.getPartyService() == null || !plugin.getPartyService().isInParty())
+        if (plugin.getPartyService() == null || !plugin.getPartyService().isInParty() || memberName == null)
             return null;
+        String cleanMemberName = net.runelite.client.util.Text.removeTags(memberName).replace('\u00A0', ' ');
         for (net.runelite.client.party.PartyMember member : plugin.getPartyService().getMembers()) {
-            if (member.getDisplayName().equals(memberName)) {
+            if (member.getDisplayName() != null && net.runelite.client.util.Text.removeTags(member.getDisplayName()).replace('\u00A0', ' ').equalsIgnoreCase(cleanMemberName)) {
                 return member.getAvatar();
             }
         }
