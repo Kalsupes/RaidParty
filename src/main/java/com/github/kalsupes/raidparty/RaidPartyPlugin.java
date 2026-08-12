@@ -1955,8 +1955,8 @@ public class RaidPartyPlugin extends Plugin {
             if (region == -1) continue;
 
             // ToA Rooms (Lobby, Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
-            if (region == 14674 || region == 14160 || region == 14162 || region == 14163 || region == 14164 || 
-                region == 14686 || region == 14687 || region == 14688 || 
+            if (region == 14674 || region == 14676 || region == 14160 || region == 14162 || region == 14163 || 
+                region == 14164 || region == 14686 || region == 14687 || region == 14688 || 
                 region == 15184 || region == 15186 || region == 15187 || region == 15188 || 
                 region == 15696 || region == 15698 || region == 15699 || region == 15700) {
                 return true;
