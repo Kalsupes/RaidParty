@@ -374,12 +374,7 @@ public class RaidPartyPlayerCard extends JPanel {
 
         JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         nameRow.setOpaque(false);
-        String displayName = memberName;
-        if (syncData != null && syncData.getAccountType() > 0) {
-            displayName = getAccountTypeIconTag(syncData.getAccountType()) + displayName;
-        }
-
-        JLabel nameLbl = new JLabel(displayName) {
+        JLabel nameLbl = new JLabel(memberName) {
             @Override
             public Dimension getPreferredSize() {
                 Dimension d = super.getPreferredSize();
@@ -398,6 +393,17 @@ public class RaidPartyPlayerCard extends JPanel {
             JLabel avatarLabel = new JLabel(avatarIcon);
             avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 4));
             nameRow.add(avatarLabel, 0); // Add before name
+        }
+
+        // Add ironman helm if applicable
+        if (syncData != null && syncData.getAccountType() > 0) {
+            BufferedImage helmIcon = getAccountTypeIcon(syncData.getAccountType());
+            if (helmIcon != null) {
+                JLabel helmLabel = new JLabel(new ImageIcon(helmIcon));
+                helmLabel.setBorder(new EmptyBorder(0, 0, 0, 4));
+                // Add right before the name (after avatar and crown if they exist)
+                nameRow.add(helmLabel, nameRow.getComponentCount() - 1); 
+            }
         }
 
         // Badges container (stacked vertically)
@@ -707,15 +713,23 @@ public class RaidPartyPlayerCard extends JPanel {
         return null;
     }
 
-    private String getAccountTypeIconTag(int accountType) {
+    private BufferedImage getAccountTypeIcon(int accountType) {
+        String fileName = null;
         switch (accountType) {
-            case 1: return "<img=2>";
-            case 2: return "<img=3>";
-            case 3: return "<img=10>";
-            case 4: return "<img=41>";
-            case 5: return "<img=42>";
-            case 6: return "<img=43>";
-            default: return "";
+            case 1: fileName = "ironman.png"; break;
+            case 2: fileName = "ultimate_ironman.png"; break;
+            case 3: fileName = "hardcore_ironman.png"; break;
+            case 4: fileName = "group_ironman.png"; break;
+            case 5: fileName = "hardcore_group_ironman.png"; break;
+            case 6: fileName = "unranked_group_ironman.png"; break;
         }
+        if (fileName != null) {
+            try {
+                return net.runelite.client.util.ImageUtil.loadImageResource(RaidPartyPlugin.class, fileName);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return null;
     }
 }
