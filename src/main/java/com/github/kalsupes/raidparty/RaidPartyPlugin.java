@@ -967,7 +967,7 @@ public class RaidPartyPlugin extends Plugin {
         } else {
             if (officiallyInRaid) {
                 outOfRaidTicks++;
-                if (outOfRaidTicks > 15) { // ~9 seconds out of raid to officially drop the lock
+                if (outOfRaidTicks > 30) { // ~18 seconds out of raid to officially drop the lock
                     officiallyInRaid = false;
                     needsPartySync = true;
                     forceFullSync = true;
@@ -1954,8 +1954,8 @@ public class RaidPartyPlugin extends Plugin {
         for (int region : regionsToCheck) {
             if (region == -1) continue;
 
-            // ToA Rooms (Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
-            if (region == 14160 || region == 14162 || region == 14163 || region == 14164 || 
+            // ToA Rooms (Lobby, Nexus, Kephri, Zebak, Akkha, Baba, Wardens, Loot)
+            if (region == 14674 || region == 14160 || region == 14162 || region == 14163 || region == 14164 || 
                 region == 14686 || region == 14687 || region == 14688 || 
                 region == 15184 || region == 15186 || region == 15187 || region == 15188 || 
                 region == 15696 || region == 15698 || region == 15699 || region == 15700) {
