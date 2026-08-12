@@ -374,7 +374,12 @@ public class RaidPartyPlayerCard extends JPanel {
 
         JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         nameRow.setOpaque(false);
-        JLabel nameLbl = new JLabel(memberName) {
+        String displayName = memberName;
+        if (syncData != null && syncData.getAccountType() > 0) {
+            displayName = getAccountTypeIconTag(syncData.getAccountType()) + displayName;
+        }
+
+        JLabel nameLbl = new JLabel(displayName) {
             @Override
             public Dimension getPreferredSize() {
                 Dimension d = super.getPreferredSize();
@@ -700,5 +705,17 @@ public class RaidPartyPlayerCard extends JPanel {
             }
         }
         return null;
+    }
+
+    private String getAccountTypeIconTag(int accountType) {
+        switch (accountType) {
+            case 1: return "<img=2>";
+            case 2: return "<img=3>";
+            case 3: return "<img=10>";
+            case 4: return "<img=41>";
+            case 5: return "<img=42>";
+            case 6: return "<img=43>";
+            default: return "";
+        }
     }
 }
