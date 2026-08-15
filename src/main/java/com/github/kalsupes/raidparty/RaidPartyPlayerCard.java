@@ -315,32 +315,33 @@ public class RaidPartyPlayerCard extends JPanel {
     }
 
     private void addTab(final MaterialTabGroup tabGroup, final int spriteID, final JPanel panel, final String tooltip) {
+        final MaterialTab tab = new MaterialTab((ImageIcon) null, tabGroup, panel);
+        tab.setToolTipText(tooltip);
+        tabGroup.addTab(tab);
+
+        tabMap.put(spriteID, false);
+        tab.setOnSelectEvent(() -> {
+            tabMap.replaceAll((k, v) -> v = false);
+            tabMap.put(spriteID, true);
+            return true;
+        });
+
+        if (spriteID == net.runelite.api.SpriteID.TAB_INVENTORY) {
+            tabGroup.select(tab);
+            tabMap.put(spriteID, true);
+        }
+
         spriteManager.getSpriteAsync(spriteID, 0, img -> SwingUtilities.invokeLater(() -> {
-            ImageIcon icon = new ImageIcon(ImageUtil.resizeImage(img, IMAGE_SIZE.width, IMAGE_SIZE.height));
-            final MaterialTab tab = new MaterialTab(icon, tabGroup, panel);
-            tab.setToolTipText(tooltip);
-            tabGroup.addTab(tab);
-            tabGroup.revalidate();
-            tabGroup.repaint();
-
-            tabMap.put(spriteID, false);
-            tab.setOnSelectEvent(() -> {
-                tabMap.replaceAll((k, v) -> v = false);
-                tabMap.put(spriteID, true);
-                return true;
-            });
-
-            if (spriteID == SpriteID.TAB_INVENTORY) {
-                tabGroup.select(tab);
-                tabMap.put(spriteID, true);
-            }
-            
-            RaidPartyPlayerCard.this.revalidate();
-            RaidPartyPlayerCard.this.repaint();
-            java.awt.Container parent = RaidPartyPlayerCard.this.getParent();
-            if (parent != null) {
-                parent.revalidate();
-                parent.repaint();
+            if (img != null) {
+                ImageIcon icon = new ImageIcon(net.runelite.client.util.ImageUtil.resizeImage(img, IMAGE_SIZE.width, IMAGE_SIZE.height));
+                tab.setIcon(icon);
+                tab.revalidate();
+                tab.repaint();
+                java.awt.Container parent = RaidPartyPlayerCard.this.getParent();
+                if (parent != null) {
+                    parent.revalidate();
+                    parent.repaint();
+                }
             }
         }));
     }
