@@ -28,7 +28,7 @@ dependencies {
 }
 
 group = 'com.github.kalsupes.raidparty'
-version = '2.6.0'
+version = '3.0'
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
