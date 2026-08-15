@@ -585,20 +585,20 @@ public class RaidPartyPlayerCard extends JPanel {
 
             JPanel specCell;
             if (cachedSpecIcon != null) {
-                specCell = createStatCell(cachedSpecIcon, syncData.getSpec(), SPEC_YELLOW);
+                specCell = createStatCell(cachedSpecIcon, syncData.getSpec() / 10, SPEC_YELLOW);
             } else {
-                specCell = createStatCell("\u2694", syncData.getSpec(), SPEC_YELLOW);
+                specCell = createStatCell("\u2694", syncData.getSpec() / 10, SPEC_YELLOW);
             }
             statsRow.add(specCell);
 
             boolean hasStamina = syncData.getStamina() > 0;
             JPanel runCell;
             if (hasStamina && cachedStaminaIcon != null) {
-                runCell = createStatCell(cachedStaminaIcon, syncData.getRun(), STAMINA_ORANGE);
+                runCell = createStatCell(cachedStaminaIcon, syncData.getRun() / 100, STAMINA_ORANGE);
             } else if (!hasStamina && cachedRunIcon != null) {
-                runCell = createStatCell(cachedRunIcon, syncData.getRun(), RUN_ORANGE);
+                runCell = createStatCell(cachedRunIcon, syncData.getRun() / 100, RUN_ORANGE);
             } else {
-                runCell = createStatCell("\uD83C\uDFC3", syncData.getRun(), hasStamina ? STAMINA_ORANGE : RUN_ORANGE);
+                runCell = createStatCell("\uD83C\uDFC3", syncData.getRun() / 100, hasStamina ? STAMINA_ORANGE : RUN_ORANGE);
             }
             statsRow.add(runCell);
 
