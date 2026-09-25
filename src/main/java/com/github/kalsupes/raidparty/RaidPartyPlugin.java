@@ -1766,7 +1766,7 @@ public class RaidPartyPlugin extends Plugin {
             }
             
             String finalItemName = "";
-            int price = 0;
+            long price = 0;
 
             if (matchedItem != null) {
                 // Title case the item name
@@ -1783,7 +1783,7 @@ public class RaidPartyPlugin extends Plugin {
                 } else {
                     finalItemName = "Valuable Item";
                 }
-                price = (int) parsedCoins;
+                price = parsedCoins;
             }
 
             String priceStr = price > 0 ? java.text.NumberFormat.getInstance().format(price) : "Unknown";

@@ -35,9 +35,9 @@ public final class GameItem
 	private final int qty;
 	private final String name;
 	private final boolean stackable;
-	private final int price;
+	private final long price;
 
-	public GameItem(int id, int qty, String name, boolean stackable, int price) {
+	public GameItem(int id, int qty, String name, boolean stackable, long price) {
 		this.id = id;
 		this.qty = qty;
 		this.name = name;
@@ -49,7 +49,7 @@ public final class GameItem
 	public int getQty() { return qty; }
 	public String getName() { return name; }
 	public boolean isStackable() { return stackable; }
-	public int getPrice() { return price; }
+	public long getPrice() { return price; }
 
 	public GameItem(final Item item, final ItemManager itemManager)
 	{
