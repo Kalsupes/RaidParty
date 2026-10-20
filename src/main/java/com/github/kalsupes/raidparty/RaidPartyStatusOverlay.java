@@ -72,7 +72,7 @@ public class RaidPartyStatusOverlay extends Overlay
             }
 
             RaidPartyPlayerSync partyData = findPartySync(player);
-            if (partyData == null)
+            if (partyData == null || !partyData.hasLiveData())
             {
                 continue;
             }

@@ -16,6 +16,17 @@ import net.runelite.client.party.messages.PartyMemberMessage;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 public class RaidPartyPlayerSync extends PartyMemberMessage {
+    @SerializedName("online")
+    private Boolean online;
+
+    @SerializedName("dv")
+    private Integer defenceVersion;
+
+    // Presentation state is computed locally and never accepted from the wire.
+    private transient String unavailableReason;
+
+    public boolean hasLiveData() { return unavailableReason == null; }
+
     @SerializedName(value = "hp", alternate = {"hitpoints"})
     private Integer hp;
     

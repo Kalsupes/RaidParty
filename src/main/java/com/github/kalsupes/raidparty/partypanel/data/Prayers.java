@@ -27,10 +27,7 @@ package com.github.kalsupes.raidparty.partypanel.data;
 import java.util.HashMap;
 import java.util.Map;
 import net.runelite.api.Client;
-import net.runelite.api.EnumComposition;
-import net.runelite.api.EnumID;
 import net.runelite.api.Prayer;
-import net.runelite.api.Varbits;
 import com.github.kalsupes.raidparty.partypanel.ui.prayer.PrayerSprites;
 
 public class Prayers
@@ -38,17 +35,16 @@ public class Prayers
 	/**
 	 * Checks if the prayer is available to be used (checks all requirements)
 	 * <ul>
-	 * <li> int	Jagex prayer index to check (See {@link PrayerSprites} scriptIndex property) </li>
+	 * <li> int	Jagex prayer index to check (See {@link PrayerSprites} itemID property) </li>
 	 * </ul>
 	 * Returns
 	 * <ul>
 	 * <li> int	(boolean) whether the prayer can be activated </li>
 	 * </ul>
 	 */
-	public static final int PRAYER_IS_AVAILABLE = 464;
+	public static final int PRAYER_IS_AVAILABLE = 10154;
 
 	private final Map<Prayer, PrayerData> prayerData = new HashMap<>();
-	private int[] prayerIds = new int[0];
 
 	public Map<Prayer, PrayerData> getPrayerData() { return prayerData; }
 
@@ -70,26 +66,16 @@ public class Prayers
 				updatePrayerState(p, client);
 			}
 		}
-		else
-		{
-			setCurrentPrayerIds(client);
-		}
 	}
 
 	public boolean updatePrayerState(final PrayerSprites p, final Client client)
 	{
-		if (prayerIds.length == 0)
-		{
-			setCurrentPrayerIds(client);
-		}
-
-		assert prayerIds.length > 0;
 		boolean changed, available, enabled, unlocked;
 
 		PrayerData data = prayerData.get(p.getPrayer());
 		if (p.isUnlocked(client))
 		{
-			client.runScript(PRAYER_IS_AVAILABLE, prayerIds[p.getScriptIndex()]);
+			client.runScript(PRAYER_IS_AVAILABLE, p.getItemID());
 			available = client.getIntStack()[0] > 0;
 			enabled = client.isPrayerActive(p.getPrayer());
 			unlocked = true;
@@ -118,37 +104,8 @@ public class Prayers
 		return changed;
 	}
 
-	private void setCurrentPrayerIds(Client client)
-	{
-		final EnumComposition prayers = getPrayerEnum(client);
-		this.prayerIds = prayers.getIntVals();
-	}
-
-	private EnumComposition getPrayerEnum(Client client)
-	{
-		boolean deadeye = client.getVarbitValue(Varbits.PRAYER_DEADEYE_UNLOCKED) != 0;
-		boolean vigour = client.getVarbitValue(Varbits.PRAYER_MYSTIC_VIGOUR_UNLOCKED) != 0;
-
-		if (deadeye && vigour)
-		{
-			return client.getEnum(EnumID.PRAYERS_NORMAL_DEADEYE_MYSTIC_VIGOUR);
-		}
-		else if (deadeye)
-		{
-			return client.getEnum(EnumID.PRAYERS_NORMAL_DEADEYE);
-		}
-		else if (vigour)
-		{
-			return client.getEnum(EnumID.PRAYERS_NORMAL_MYSTIC_VIGOUR);
-		}
-		else
-		{
-			return client.getEnum(EnumID.PRAYERS_NORMAL);
-		}
-	}
-
 	public static boolean isUnlockedByDefault(Prayer p)
 	{
-		return true;
+		return p != Prayer.DEADEYE && p != Prayer.MYSTIC_VIGOUR && !p.name().startsWith("RP_");
 	}
 }

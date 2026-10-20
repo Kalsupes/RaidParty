@@ -10,3 +10,5 @@ nbproject/
 .vscode/
 .env
 local.properties
+
+bin/

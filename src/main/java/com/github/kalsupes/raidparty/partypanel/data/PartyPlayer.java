@@ -147,7 +147,8 @@ public class PartyPlayer
 			return 0;
 		}
 
-		return stats.getBoostedLevels().get(skill);
+		final Integer lvl = stats.getBoostedLevels().get(skill);
+		return lvl != null ? lvl : 0;
 	}
 
 	public int getSkillRealLevel(final Skill skill)
@@ -162,7 +163,8 @@ public class PartyPlayer
 			return 0;
 		}
 
-		return Math.min(stats.getBaseLevels().get(skill), allowVirtualLevels ? 126 : 99);
+		final Integer lvl = stats.getBaseLevels().get(skill);
+		return lvl != null ? Math.min(lvl, allowVirtualLevels ? 126 : 99) : 0;
 	}
 
 	public void setSkillsBoostedLevel(final Skill skill, final int level)

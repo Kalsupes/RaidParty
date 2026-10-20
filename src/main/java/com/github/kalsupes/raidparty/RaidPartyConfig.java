@@ -9,6 +9,41 @@ import net.runelite.client.config.ModifierlessKeybind;
 
 @ConfigGroup("raidparty")
 public interface RaidPartyConfig extends Config {
+    @ConfigItem(keyName = "networkDiagnostics", name = "Network diagnostics", description = "Log local aggregate message counts and approximate bytes once per minute. No names, passphrases or message contents are logged.", position = 99)
+    default boolean networkDiagnostics() { return false; }
+    @ConfigSection(name = "Boss Defence", description = "Estimate NPC defence from confirmed solo and party attacks", position = 7, closedByDefault = false)
+    String defenceSection = "defenceSection";
+
+    @ConfigItem(keyName = "defenceTracking", name = "Track boss defence", description = "Track confirmed defence-lowering special attacks and visible curses. Values are estimates from observed events.", section = defenceSection, position = 0)
+    default boolean defenceTracking() { return true; }
+
+    @ConfigItem(keyName = "defencePartySync", name = "Share defence hits", description = "Send and receive confirmed hits with other RaidParty clients in your RuneLite party", section = defenceSection, position = 1)
+    default boolean defencePartySync() { return true; }
+
+    @ConfigItem(keyName = "defenceOverlay", name = "Green defence squares", description = "Turn existing Special Attack Counter weapon squares green together when combined party reductions reach the verified boss floor. Does not add a panel or infoboxes.", section = defenceSection, position = 2)
+    default boolean defenceOverlay() { return true; }
+
+    @ConfigItem(keyName = "defenceYamaContract", name = "Yama contract encounter", description = "Enable during Yama contracts. Their boosted stats share the normal NPC ID; green confirmation is withheld until contract scaling is verified.", section = defenceSection, position = 9)
+    default boolean defenceYamaContract() { return false; }
+
+    // Legacy accessors retained for saved configurations; the rectangular display is gone.
+    default boolean defencePreferExternalDisplay() { return true; }
+
+    default boolean defenceShowDetails() { return true; }
+
+    default boolean defenceShowMagic() { return false; }
+
+    @net.runelite.client.config.Range(min = 5, max = 500)
+    @ConfigItem(keyName = "defenceDisplayTicks", name = "Highlight timeout (ticks)", description = "Keep the last target's green indication this many game ticks after combat or a reduction", section = defenceSection, position = 5)
+    default int defenceDisplayTicks() { return 50; }
+
+    @ConfigItem(keyName = "defenceAwakened", name = "Awakened DT2 encounter", description = "Select awakened stats for DT2 bosses that share NPC IDs with normal mode. Disable for normal encounters.", section = defenceSection, position = 6)
+    default boolean defenceAwakened() { return false; }
+
+    @net.runelite.client.config.Range(min = 1, max = 99)
+    @ConfigItem(keyName = "defenceCoxHighestHp", name = "CoX highest base Hitpoints", description = "Highest unboosted Hitpoints level in the raid, including players outside your RuneLite party. Party size and challenge mode are read automatically.", section = defenceSection, position = 7)
+    default int defenceCoxHighestHp() { return 99; }
+
     // ================= SECTIONS =================
     @ConfigSection(name = "General", description = "General plugin settings", position = 0, closedByDefault = false)
     String generalSection = "generalSection";

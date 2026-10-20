@@ -386,6 +386,7 @@ public class RaidPartyPanel extends PluginPanel {
 
     public void addMember(RaidPartyPlayerSync sync, boolean isLocal) {
         SwingUtilities.invokeLater(() -> {
+            if (!isLocal && !plugin.isCurrentMemberSnapshot(sync)) return;
             String username = sync.getUsername();
             if (username == null) return;
             
@@ -476,12 +477,16 @@ public class RaidPartyPanel extends PluginPanel {
         }
 
         SwingUtilities.invokeLater(() -> {
+            if (!plugin.isCurrentMemberSnapshot(sync)) return;
             String sanitized = sync.getUsername().toLowerCase().replace("\u00A0", " ");
             RaidPartyPlayerCard card = memberCards.get(sanitized);
             if (card != null) {
                 card.updateSyncData(sync);
             } else {
-                addMember(sync, false);
+                boolean isLocal = (sync == plugin.getLocalPlayerSync())
+                        || (plugin.getPartyService() != null && plugin.getPartyService().getLocalMember() != null
+                            && sync.getMemberId() == plugin.getPartyService().getLocalMember().getMemberId());
+                addMember(sync, isLocal);
             }
         });
     }

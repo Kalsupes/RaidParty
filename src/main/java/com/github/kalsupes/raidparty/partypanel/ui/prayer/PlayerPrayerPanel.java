@@ -138,6 +138,7 @@ public class PlayerPrayerPanel extends JPanel
 
 	public void updatePrayers(final Prayers prayers)
 	{
+		boolean unlockedChanged = false;
 		for (final PrayerSprites p : PrayerSprites.values())
 		{
 			final PrayerSlot slot = slotMap.get(p.getPrayer());
@@ -146,9 +147,18 @@ public class PlayerPrayerPanel extends JPanel
 				final PrayerData data = prayers.getPrayerData().get(p.getPrayer());
 				if (data != null)
 				{
+					if (slot.getData().isUnlocked() != data.isUnlocked())
+					{
+						unlockedChanged = true;
+					}
 					slot.updatePrayerData(data);
 				}
 			}
+		}
+
+		if (unlockedChanged)
+		{
+			updateSlots();
 		}
 	}
 

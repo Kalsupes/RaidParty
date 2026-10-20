@@ -91,7 +91,7 @@ public class RaidPartyPlayerCard extends JPanel {
     }
 
     private boolean expanded = false;
-    private RaidPartyPlayerSync syncData;
+    private volatile RaidPartyPlayerSync syncData;
     private PartyPlayer adapterPlayer;
 
     private JPanel bannerPanel;
@@ -129,9 +129,18 @@ public class RaidPartyPlayerCard extends JPanel {
 
     public void updateSyncData(RaidPartyPlayerSync newSync) {
         this.syncData = newSync;
+        if (!newSync.hasLiveData()) {
+            expanded = false;
+            adapterPlayer = null;
+            buildCard();
+            revalidate();
+            repaint();
+            return;
+        }
 
         // Fetch data on ClientThread if expanded, otherwise just update banner on Swing thread
         plugin.getClientThread().invokeLater(() -> {
+            if (syncData != newSync) return;
             if (expanded) {
                 this.adapterPlayer = createAdapterPlayer(newSync);
             }
@@ -141,11 +150,14 @@ public class RaidPartyPlayerCard extends JPanel {
             final boolean onSameWorld = newSync != null && newSync.getWorld() != 0 && newSync.getWorld() == plugin.getClient().getWorld();
             
             SwingUtilities.invokeLater(() -> {
+                if (syncData != newSync) return;
                 if (expanded) {
                     if (inventoryPanel != null)
                         inventoryPanel.updateInventory(adapterPlayer.getInventory(), adapterPlayer.getRunesInPouch());
-                    if (equipmentPanel != null)
+                    if (equipmentPanel != null) {
                         equipmentPanel.updateEquipment(adapterPlayer.getEquipment());
+                        equipmentPanel.setQuiver(adapterPlayer.getQuiver());
+                    }
                     if (skillsPanel != null)
                         skillsPanel.updateStats(adapterPlayer);
                     if (prayerPanel != null) {
@@ -185,7 +197,7 @@ public class RaidPartyPlayerCard extends JPanel {
             return p;
 
         p.setUsername(memberName);
-        p.setStamina(sync.getRun());
+        p.setStamina(sync.getStamina());
         p.setWorld(sync.getWorld());
 
         // Inventory
@@ -218,9 +230,24 @@ public class RaidPartyPlayerCard extends JPanel {
         }
         p.setEquipment(eqp);
 
+        // Preserve quiver state when adapting a party snapshot for the inspection UI.
+        com.github.kalsupes.raidparty.partypanel.data.Quiver quiver = p.getQuiver();
+        for (GameItem item : inv) {
+            if (item != null && com.github.kalsupes.raidparty.partypanel.PartyPanelPlugin.DIZANAS_QUIVER_IDS.contains(item.getId())) {
+                quiver.setInInventory(true);
+                break;
+            }
+        }
+        GameItem cape = eqp[net.runelite.api.EquipmentInventorySlot.CAPE.getSlotIdx()];
+        quiver.setBeingWorn(cape != null
+                && com.github.kalsupes.raidparty.partypanel.PartyPanelPlugin.DIZANAS_QUIVER_IDS.contains(cape.getId()));
+        if (sync.getQuiverAmmoId() > 0 && sync.getQuiverAmmoQty() > 0) {
+            quiver.setQuiverAmmo(new GameItem(sync.getQuiverAmmoId(), sync.getQuiverAmmoQty(), itemManager));
+        }
+
         // Stats
         com.github.kalsupes.raidparty.partypanel.data.Stats s = new com.github.kalsupes.raidparty.partypanel.data.Stats();
-        if (sync.getSkillLevels() != null && sync.getSkillLevels().length >= 46) {
+        if (sync.getSkillLevels() != null) {
             for (net.runelite.api.Skill skill : net.runelite.api.Skill.values()) {
                 int idx = skill.ordinal() * 2;
                 if (idx + 1 < sync.getSkillLevels().length) {
@@ -231,6 +258,15 @@ public class RaidPartyPlayerCard extends JPanel {
                     s.getExperiences().put(skill, sync.getSkillXps()[skill.ordinal()]);
                 }
             }
+        } else {
+            if (sync.getMaxHp() > 0) {
+                s.getBaseLevels().put(net.runelite.api.Skill.HITPOINTS, sync.getMaxHp());
+                s.getBoostedLevels().put(net.runelite.api.Skill.HITPOINTS, sync.getHp());
+            }
+            if (sync.getMaxPrayer() > 0) {
+                s.getBaseLevels().put(net.runelite.api.Skill.PRAYER, sync.getMaxPrayer());
+                s.getBoostedLevels().put(net.runelite.api.Skill.PRAYER, sync.getPrayer());
+            }
         }
         s.setRunEnergy(sync.getRun());
         s.setCombatLevel(sync.getCombatLevel());
@@ -238,13 +274,39 @@ public class RaidPartyPlayerCard extends JPanel {
 
         // Prayers
         com.github.kalsupes.raidparty.partypanel.data.Prayers prayers = new com.github.kalsupes.raidparty.partypanel.data.Prayers();
+        long unlockedMask = sync.getUnlockedPrayers();
+        long availableMask = sync.getAvailablePrayers();
+        long activeMask = sync.getActivePrayers();
+        boolean hasUnlockedMask = sync.getRawUnlockedPrayers() != null && unlockedMask != 0L;
+        boolean deadeyeSlot = hasUnlockedMask
+                && (unlockedMask & (1L << net.runelite.api.Prayer.DEADEYE.ordinal())) != 0
+                && ((unlockedMask & (1L << net.runelite.api.Prayer.EAGLE_EYE.ordinal())) == 0
+                    || (activeMask & (1L << net.runelite.api.Prayer.DEADEYE.ordinal())) != 0);
+        boolean mysticVigourSlot = hasUnlockedMask
+                && (unlockedMask & (1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0
+                && ((unlockedMask & (1L << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal())) == 0
+                    || (activeMask & (1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0);
+
         for (net.runelite.api.Prayer pr : net.runelite.api.Prayer.values()) {
             com.github.kalsupes.raidparty.partypanel.data.PrayerData pd = prayers.getPrayerData().get(pr);
             if (pd != null) {
                 long ordIdx = 1L << pr.ordinal();
-                pd.setAvailable((sync.getAvailablePrayers() & ordIdx) != 0);
-                pd.setEnabled((sync.getActivePrayers() & ordIdx) != 0);
-                pd.setUnlocked((sync.getUnlockedPrayers() & ordIdx) != 0);
+                boolean unlockedInGrid;
+                if (pr == net.runelite.api.Prayer.DEADEYE) {
+                    unlockedInGrid = deadeyeSlot;
+                } else if (pr == net.runelite.api.Prayer.EAGLE_EYE) {
+                    unlockedInGrid = !deadeyeSlot;
+                } else if (pr == net.runelite.api.Prayer.MYSTIC_VIGOUR) {
+                    unlockedInGrid = mysticVigourSlot;
+                } else if (pr == net.runelite.api.Prayer.MYSTIC_MIGHT) {
+                    unlockedInGrid = !mysticVigourSlot;
+                } else {
+                    unlockedInGrid = com.github.kalsupes.raidparty.partypanel.data.Prayers.isUnlockedByDefault(pr);
+                }
+                boolean available = (availableMask & ordIdx) != 0 && (!hasUnlockedMask || (unlockedMask & ordIdx) != 0);
+                pd.setAvailable(available);
+                pd.setEnabled((activeMask & ordIdx) != 0);
+                pd.setUnlocked(unlockedInGrid);
             }
         }
         p.setPrayers(prayers);
@@ -253,6 +315,7 @@ public class RaidPartyPlayerCard extends JPanel {
     }
 
     private void buildCard() {
+        if (syncData != null && !syncData.hasLiveData()) expanded = false;
         removeAll();
 
         bannerPanel = createBanner();
@@ -348,6 +411,19 @@ public class RaidPartyPlayerCard extends JPanel {
 
     // ======================== BANNER ========================
     private JPanel createBanner() {
+        if (syncData != null && !syncData.hasLiveData()) {
+            JPanel offline = new JPanel(new BorderLayout(6, 4));
+            offline.setOpaque(false);
+            offline.setBorder(new EmptyBorder(8, 8, 8, 8));
+            JLabel name = new JLabel(memberName);
+            name.setForeground(Color.GRAY);
+            JLabel status = new JLabel(syncData.getUnavailableReason());
+            status.setForeground(Color.LIGHT_GRAY);
+            offline.add(name, BorderLayout.NORTH);
+            offline.add(status, BorderLayout.SOUTH);
+            offline.setToolTipText("Live details unavailable. Offline members leave after 15 minutes and must manually rejoin.");
+            return offline;
+        }
         JPanel banner = new JPanel(new BorderLayout(6, 0)) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -624,6 +700,7 @@ public class RaidPartyPlayerCard extends JPanel {
         return new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                if (syncData != null && !syncData.hasLiveData()) return;
                 if (SwingUtilities.isRightMouseButton(e)) {
                     showContextMenu(e);
                     return;
