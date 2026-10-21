@@ -1,6 +1,6 @@
 package com.github.kalsupes.raidparty.defence;
 
-import com.google.gson.Gson;
+import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -10,6 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.runelite.client.util.Text;
 
 /** Bundled NPC-id data; no network request is made by this feature. */
@@ -17,6 +19,10 @@ public final class DefenceProfile
 {
     private static final Map<Integer, List<DefenceProfile>> BY_ID = new HashMap<>();
     private static final Map<String, List<DefenceProfile>> BY_NAME = new HashMap<>();
+    private static final Pattern ROW = Pattern.compile(
+        "^\\s*\\{\"id\":(\\d+),\"name\":\"((?:\\\\.|[^\"\\\\])*)\",\"variant\":\"((?:\\\\.|[^\"\\\\])*)\","
+        + "\"defence\":(\\d+),\"magic\":(\\d+),\"attack\":(\\d+),\"strength\":(\\d+),\"ranged\":(\\d+),"
+        + "\"magicDefence\":(-?\\d+),\"demon\":(true|false),\"cox\":(true|false)\\},?$");
     static
     {
         try (InputStream stream = DefenceProfile.class.getResourceAsStream("/defence/npcs.json"))
@@ -25,10 +31,24 @@ public final class DefenceProfile
             {
                 throw new IllegalStateException("Missing bundled defence profiles");
             }
-            DefenceProfile[] profiles = new Gson().fromJson(
-                new InputStreamReader(stream, StandardCharsets.UTF_8), DefenceProfile[].class);
-            for (DefenceProfile profile : profiles)
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+            String line;
+            while ((line = reader.readLine()) != null)
             {
+                Matcher m = ROW.matcher(line);
+                if (!m.matches()) continue;
+                DefenceProfile profile = new DefenceProfile();
+                profile.id = Integer.parseInt(m.group(1));
+                profile.name = unescape(m.group(2));
+                profile.variant = unescape(m.group(3));
+                profile.defence = Integer.parseInt(m.group(4));
+                profile.magic = Integer.parseInt(m.group(5));
+                profile.attack = Integer.parseInt(m.group(6));
+                profile.strength = Integer.parseInt(m.group(7));
+                profile.ranged = Integer.parseInt(m.group(8));
+                profile.magicDefence = Integer.parseInt(m.group(9));
+                profile.demon = Boolean.parseBoolean(m.group(10));
+                profile.cox = Boolean.parseBoolean(m.group(11));
                 BY_ID.computeIfAbsent(profile.id, key -> new ArrayList<>()).add(profile);
                 BY_NAME.computeIfAbsent(normalize(profile.name), key -> new ArrayList<>()).add(profile);
             }
@@ -75,6 +95,28 @@ public final class DefenceProfile
     {
         List<DefenceProfile> profiles = BY_ID.get(canonical);
         if (profiles != null) for (int id : ids) BY_ID.putIfAbsent(id, profiles);
+    }
+
+    private static String unescape(String s)
+    {
+        if (s.indexOf('\\') < 0) return s;
+        StringBuilder out = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++)
+        {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length())
+            {
+                char n = s.charAt(++i);
+                if (n == 'u' && i + 4 < s.length())
+                {
+                    out.append((char) Integer.parseInt(s.substring(i + 1, i + 5), 16));
+                    i += 4;
+                }
+                else out.append(n);
+            }
+            else out.append(c);
+        }
+        return out.toString();
     }
 
     public static String normalize(String name)

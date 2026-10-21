@@ -2,6 +2,7 @@ package com.github.kalsupes.raidparty;
 
 import com.github.kalsupes.raidparty.defence.RaidPartyDefenceMessage;
 import com.github.kalsupes.raidparty.defence.RaidPartyDefenceSync;
+import com.google.gson.Gson;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -9,17 +10,18 @@ import java.util.function.BooleanSupplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import net.runelite.client.party.messages.PartyMessage;
-import net.runelite.http.api.RuneLiteAPI;
 
 /** Opt-in local aggregate counters. Never stores names, identifiers or payloads. */
 @Singleton
 public final class NetworkStats
 {
     private final BooleanSupplier enabled;
+    private final Gson gson;
     private final Map<String, Long> counters = new LinkedHashMap<>();
-    @Inject public NetworkStats(RaidPartyConfig config) { this(config::networkDiagnostics); }
-    NetworkStats(BooleanSupplier enabled) { this.enabled = enabled; }
-    public static NetworkStats disabled() { return new NetworkStats(() -> false); }
+    @Inject public NetworkStats(RaidPartyConfig config, Gson gson) { this(config::networkDiagnostics, gson); }
+    NetworkStats(BooleanSupplier enabled) { this(enabled, null); }
+    NetworkStats(BooleanSupplier enabled, Gson gson) { this.enabled = enabled; this.gson = gson; }
+    public static NetworkStats disabled() { return new NetworkStats(() -> false, null); }
     public synchronized void count(String key) { add(key, 1); }
     public synchronized void add(String key, long amount)
     {
@@ -33,7 +35,7 @@ public final class NetworkStats
         String type = message.getClass().getSimpleName();
         count("sent." + type);
         // Body, JSON discriminator and approximate protobuf envelope. No body retained.
-        int body = RuneLiteAPI.GSON.toJson(message).getBytes(StandardCharsets.UTF_8).length;
+        int body = (gson != null ? gson.toJson(message) : String.valueOf(message)).getBytes(StandardCharsets.UTF_8).length;
         add("bytes." + type, body + 2 * type.length() + 20);
         if (message instanceof RaidPartyDefenceMessage) count("defence.live");
         if (message instanceof RaidPartyDefenceSync)
