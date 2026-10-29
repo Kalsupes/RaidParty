@@ -36,4 +36,9 @@ public class PrayerData
 	private boolean available;
 	private boolean enabled;
 	private boolean unlocked;
+
+	public PrayerData copy()
+	{
+		return new PrayerData(this.prayer, this.available, this.enabled, this.unlocked);
+	}
 }

@@ -286,6 +286,10 @@ public class RaidPartyPlayerCard extends JPanel {
                 && (unlockedMask & (1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0
                 && ((unlockedMask & (1L << net.runelite.api.Prayer.MYSTIC_MIGHT.ordinal())) == 0
                     || (activeMask & (1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal())) != 0);
+        boolean zealSlot = hasUnlockedMask
+                && (unlockedMask & (1L << net.runelite.api.Prayer.ZEAL.ordinal())) != 0
+                && ((unlockedMask & (1L << net.runelite.api.Prayer.PIETY.ordinal())) == 0
+                    || (activeMask & (1L << net.runelite.api.Prayer.ZEAL.ordinal())) != 0);
 
         for (net.runelite.api.Prayer pr : net.runelite.api.Prayer.values()) {
             com.github.kalsupes.raidparty.partypanel.data.PrayerData pd = prayers.getPrayerData().get(pr);
@@ -300,6 +304,10 @@ public class RaidPartyPlayerCard extends JPanel {
                     unlockedInGrid = mysticVigourSlot;
                 } else if (pr == net.runelite.api.Prayer.MYSTIC_MIGHT) {
                     unlockedInGrid = !mysticVigourSlot;
+                } else if (pr == net.runelite.api.Prayer.ZEAL) {
+                    unlockedInGrid = zealSlot;
+                } else if (pr == net.runelite.api.Prayer.PIETY) {
+                    unlockedInGrid = !zealSlot;
                 } else {
                     unlockedInGrid = com.github.kalsupes.raidparty.partypanel.data.Prayers.isUnlockedByDefault(pr);
                 }

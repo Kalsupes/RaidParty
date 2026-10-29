@@ -90,7 +90,7 @@ public class PrayerSlot extends JLabel
 			return;
 		}
 
-		data = updatedData;
+		data = updatedData.copy();
 
 		BufferedImage icon = data.isAvailable() ? availableImage : unavailableImage;
 		if (data.isEnabled())

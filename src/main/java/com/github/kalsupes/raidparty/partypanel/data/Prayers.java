@@ -98,6 +98,7 @@ public class Prayers
 			changed = data.isAvailable() != available || data.isEnabled() != enabled || data.isUnlocked() != unlocked;
 			data.setAvailable(available);
 			data.setEnabled(enabled);
+			data.setUnlocked(unlocked);
 		}
 
 		prayerData.put(data.getPrayer(), data);
@@ -106,6 +107,6 @@ public class Prayers
 
 	public static boolean isUnlockedByDefault(Prayer p)
 	{
-		return p != Prayer.DEADEYE && p != Prayer.MYSTIC_VIGOUR && !p.name().startsWith("RP_");
+		return p != Prayer.DEADEYE && p != Prayer.MYSTIC_VIGOUR && p != Prayer.ZEAL && !p.name().startsWith("RP_");
 	}
 }

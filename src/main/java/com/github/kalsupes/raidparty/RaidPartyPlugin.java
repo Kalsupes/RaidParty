@@ -54,7 +54,7 @@ import javax.swing.SwingUtilities;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.time.format.DateTimeFormatter;
-import net.runelite.client.plugins.party.messages.StatusUpdate;
+import net.runelite.client.party.messages.PartyData;
 import java.util.function.Supplier;
 import net.runelite.api.gameval.VarClientID;
 import net.runelite.client.config.Keybind;
@@ -103,6 +103,8 @@ public class RaidPartyPlugin extends Plugin {
 
     @Inject
     private net.runelite.client.party.PartyService partyService;
+    @Inject
+    private net.runelite.client.party.PartyDataService partyDataService;
     @Inject private PartySendPolicy partySendPolicy;
     @Inject private NetworkStats networkStats = NetworkStats.disabled();
 
@@ -247,6 +249,9 @@ public class RaidPartyPlugin extends Plugin {
             wsClient.registerMessage(BossPingMessage.class);
             wsClient.registerMessage(RaidPartyDefenceMessage.class);
             wsClient.registerMessage(RaidPartyDefenceSync.class);
+            if (partyDataService != null) {
+                partyDataService.subscribe(this, net.runelite.client.party.PartyDataType.CHARACTER_NAME);
+            }
             defenceTracker.start();
             eventBus.register(defenceTracker);
             eventBus.register(defenceOverlay);
@@ -306,6 +311,9 @@ public class RaidPartyPlugin extends Plugin {
         keyManager.unregisterKeyListener(dangerPingHotkey);
         keyManager.unregisterKeyListener(resourcePingHotkey);
         keyManager.unregisterKeyListener(objectPingHotkey);
+        if (partyDataService != null) {
+            partyDataService.unsubscribe(this, net.runelite.client.party.PartyDataType.CHARACTER_NAME);
+        }
         wsClient.unregisterMessage(RaidPartyPlayerSync.class);
         wsClient.unregisterMessage(RaidPartyPartyMessage.class);
         wsClient.unregisterMessage(BossPingMessage.class);
@@ -395,14 +403,6 @@ public class RaidPartyPlugin extends Plugin {
             panel.updateConnectionState(inParty, pass != null ? pass : "");
             panel.removeAllMembers();
         }
-        
-        // Ensure native party service has our local player's display name populated for the native panel
-        if (partyService != null && partyService.getLocalMember() != null) {
-            String name = getLocalPlayerName();
-            if (name != null && !name.isEmpty()) {
-                partyService.getLocalMember().setDisplayName(name);
-            }
-        }
     }
 
     @Subscribe
@@ -444,16 +444,16 @@ public class RaidPartyPlugin extends Plugin {
     }
 
     @Subscribe
-    public void onStatusUpdate(StatusUpdate event) {
+    public void onPartyData(PartyData event) {
         networkStats.received(event);
         if (!PeerDataValidation.text(event.getCharacterName(), 32)
             || !inboundBudget.take(event.getMemberId(), System.currentTimeMillis())) {
             networkStats.count("suppressed.invalidOrRateLimitedState"); return;
         }
-        clientThread.invokeLater(() -> applyStatusUpdate(event));
+        clientThread.invokeLater(() -> applyPartyData(event));
     }
 
-    private void applyStatusUpdate(StatusUpdate event) {
+    private void applyPartyData(PartyData event) {
         if (partyService == null || partyService.getLocalMember() == null) return;
         if (event.getMemberId() == partyService.getLocalMember().getMemberId()) return;
         if (partyService.getMemberById(event.getMemberId()) == null) return;
@@ -471,17 +471,23 @@ public class RaidPartyPlugin extends Plugin {
         if (event.getCharacterName() != null) {
             existing.setUsername(event.getCharacterName());
         }
-        if (event.getHealthCurrent() != null) {
-            existing.setHp(event.getHealthCurrent());
+        int[] statBoost = event.getStatBoost();
+        if (statBoost != null) {
+            if (Skill.HITPOINTS.ordinal() < statBoost.length) {
+                existing.setHp(statBoost[Skill.HITPOINTS.ordinal()]);
+            }
+            if (Skill.PRAYER.ordinal() < statBoost.length) {
+                existing.setPrayer(statBoost[Skill.PRAYER.ordinal()]);
+            }
         }
-        if (event.getHealthMax() != null) {
-            existing.setMaxHp(event.getHealthMax());
-        }
-        if (event.getPrayerCurrent() != null) {
-            existing.setPrayer(event.getPrayerCurrent());
-        }
-        if (event.getPrayerMax() != null) {
-            existing.setMaxPrayer(event.getPrayerMax());
+        int[] statBase = event.getStatBase();
+        if (statBase != null) {
+            if (Skill.HITPOINTS.ordinal() < statBase.length) {
+                existing.setMaxHp(statBase[Skill.HITPOINTS.ordinal()]);
+            }
+            if (Skill.PRAYER.ordinal() < statBase.length) {
+                existing.setMaxPrayer(statBase[Skill.PRAYER.ordinal()]);
+            }
         }
         if (event.getRunEnergy() != null) {
             existing.setRun(event.getRunEnergy());
@@ -491,6 +497,58 @@ public class RaidPartyPlugin extends Plugin {
         }
         if (event.getVengeanceActive() != null) {
             existing.setVengeanceActive(event.getVengeanceActive());
+        }
+        if (event.getPrayers() != null) {
+            existing.setActivePrayers(event.getPrayers());
+        }
+        int[] inv = event.getInv();
+        if (inv != null && inv.length % 2 == 0 && inv.length / 2 <= 28) {
+            int count = inv.length / 2;
+            int[] invIds = new int[count];
+            int[] invQtys = new int[count];
+            for (int i = 0; i < count; i++) {
+                invIds[i] = inv[i * 2];
+                invQtys[i] = Math.max(0, inv[i * 2 + 1]);
+            }
+            existing.setInvIds(invIds);
+            existing.setInvQtys(invQtys);
+        }
+        int[] worn = event.getWorn();
+        if (worn != null && worn.length % 2 == 0 && worn.length / 2 <= 16) {
+            int count = worn.length / 2;
+            int[] eqpIds = new int[count];
+            int[] eqpQtys = new int[count];
+            for (int i = 0; i < count; i++) {
+                eqpIds[i] = worn[i * 2];
+                eqpQtys[i] = Math.max(0, worn[i * 2 + 1]);
+            }
+            existing.setEqpIds(eqpIds);
+            existing.setEqpQtys(eqpQtys);
+        }
+        int[] runePouch = event.getRunePouch();
+        if (runePouch != null && runePouch.length % 2 == 0) {
+            List<Integer> rpIds = new ArrayList<>();
+            List<Integer> rpQtys = new ArrayList<>();
+            for (int i = 0; i < runePouch.length / 2 && rpIds.size() < 4; i++) {
+                int id = runePouch[i * 2];
+                int qty = runePouch[i * 2 + 1];
+                if (id > 0 && qty > 0) {
+                    rpIds.add(id);
+                    rpQtys.add(qty);
+                }
+            }
+            existing.setRunePouchIds(rpIds.stream().mapToInt(Integer::intValue).toArray());
+            existing.setRunePouchQtys(rpQtys.stream().mapToInt(Integer::intValue).toArray());
+        }
+        int[] quiver = event.getQuiver();
+        if (quiver != null) {
+            if (quiver.length >= 2 && quiver[0] >= 0 && quiver[1] > 0) {
+                existing.setQuiverAmmoId(quiver[0]);
+                existing.setQuiverAmmoQty(quiver[1]);
+            } else {
+                existing.setQuiverAmmoId(-1);
+                existing.setQuiverAmmoQty(0);
+            }
         }
         
         if (PeerDataValidation.nativeState(existing)) applyPlayerSync(existing, false);
@@ -824,7 +882,10 @@ public class RaidPartyPlugin extends Plugin {
             return;
         clientThread.invokeLater(() -> {
             if (!knownRemote(event.getMemberId())) return;
-            String sender = PeerDataValidation.clean(partyService.getMemberById(event.getMemberId()).getDisplayName());
+            net.runelite.client.party.PartyMember member = partyService.getMemberById(event.getMemberId());
+            String rawSender = (member != null && member.getDisplayName() != null && !"<unknown>".equalsIgnoreCase(member.getDisplayName()))
+                    ? member.getDisplayName() : event.getSenderName();
+            String sender = PeerDataValidation.clean(rawSender);
             if (sender.isEmpty()) return;
             String body = PeerDataValidation.clean(event.getMessage());
             client.addChatMessage(net.runelite.api.ChatMessageType.GAMEMESSAGE, "",
@@ -886,7 +947,7 @@ public class RaidPartyPlugin extends Plugin {
             return;
         if (event.getUsername() != null) {
             net.runelite.client.party.PartyMember member = partyService.getMemberById(event.getMemberId());
-            String authoritative = member == null ? null : member.getDisplayName();
+            String authoritative = (member == null || "<unknown>".equalsIgnoreCase(member.getDisplayName())) ? null : member.getDisplayName();
             event.setUsername(PeerDataValidation.clean(!local && authoritative != null && !authoritative.isEmpty()
                 ? authoritative : event.getUsername()));
         }
@@ -995,8 +1056,8 @@ public class RaidPartyPlugin extends Plugin {
         RaidPartyPlayerSync offline = new RaidPartyPlayerSync();
         offline.setMemberId(id);
         net.runelite.client.party.PartyMember member = partyService.getMemberById(id);
-        offline.setUsername(old != null && old.getUsername() != null ? old.getUsername()
-                : member == null ? null : member.getDisplayName());
+        String memberName = (member == null || "<unknown>".equalsIgnoreCase(member.getDisplayName())) ? null : member.getDisplayName();
+        offline.setUsername(old != null && old.getUsername() != null ? old.getUsername() : memberName);
         offline.setWorld(0);
         offline.setOnline(false);
         offline.setUnavailableReason(reason);
@@ -1681,6 +1742,23 @@ public class RaidPartyPlugin extends Plugin {
             packed &= ~(1L << net.runelite.api.Prayer.MYSTIC_VIGOUR.ordinal());
         }
 
+        boolean meleeActive = false;
+        try { meleeActive = client.isPrayerActive(net.runelite.api.Prayer.PIETY) || client.isPrayerActive(net.runelite.api.Prayer.ZEAL); } catch (Exception ignored) {}
+        boolean hasZeal = isZealUnlocked();
+
+        if (meleeActive) {
+            if (hasZeal) {
+                packed |= (1L << net.runelite.api.Prayer.ZEAL.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.PIETY.ordinal());
+            } else {
+                packed |= (1L << net.runelite.api.Prayer.PIETY.ordinal());
+                packed &= ~(1L << net.runelite.api.Prayer.ZEAL.ordinal());
+            }
+        } else {
+            packed &= ~(1L << net.runelite.api.Prayer.PIETY.ordinal());
+            packed &= ~(1L << net.runelite.api.Prayer.ZEAL.ordinal());
+        }
+
         return packed;
     }
 
@@ -1757,6 +1835,24 @@ public class RaidPartyPlugin extends Plugin {
         return false;
     }
 
+    private boolean isZealUnlocked() {
+        try {
+            if (client.getVarbitValue(net.runelite.api.gameval.VarbitID.PRAYER_ZEAL_UNLOCKED) != 0) {
+                return true;
+            }
+        } catch (Exception ignored) {}
+        try {
+            for (int i = 0; i < 50; i++) {
+                if (checkWidgetTreeContainsSprite(client.getWidget(541, i),
+                        net.runelite.api.gameval.SpriteID.Prayeron.ZEAL,
+                        net.runelite.api.gameval.SpriteID.Prayeroff.ZEAL_DISABLED)) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     private long gatherAvailablePrayers() {
         long packed = 0L;
         int prayerLvl = 0;
@@ -1772,7 +1868,7 @@ public class RaidPartyPlugin extends Plugin {
                 boolean hasLevel = prayerLvl >= getPrayerLevelRequirement(p);
                 if (p == net.runelite.api.Prayer.CHIVALRY) {
                     hasLevel = hasLevel && defLvl >= 65;
-                } else if (p == net.runelite.api.Prayer.PIETY || p == net.runelite.api.Prayer.RIGOUR || p == net.runelite.api.Prayer.AUGURY) {
+                } else if (p == net.runelite.api.Prayer.PIETY || p == net.runelite.api.Prayer.ZEAL || p == net.runelite.api.Prayer.RIGOUR || p == net.runelite.api.Prayer.AUGURY) {
                     hasLevel = hasLevel && defLvl >= 70;
                 }
                 if (hasLevel && (unlockedMask & (1L << p.ordinal())) != 0) {
@@ -1788,11 +1884,17 @@ public class RaidPartyPlugin extends Plugin {
         long packed = 0L;
         boolean deadeye = isDeadeyeUnlocked();
         boolean mysticVigour = isMysticVigourUnlocked();
+        boolean zeal = isZealUnlocked();
         for (net.runelite.api.Prayer p : net.runelite.api.Prayer.values()) {
             try {
                 boolean unlocked;
                 switch (p) {
                     case PIETY:
+                        unlocked = !zeal && client.getVarbitValue(3909) == 8; // Knight Waves completion varbit
+                        break;
+                    case ZEAL:
+                        unlocked = zeal;
+                        break;
                     case CHIVALRY:
                         unlocked = client.getVarbitValue(3909) == 8; // Knight Waves completion varbit
                         break;
@@ -1893,6 +1995,8 @@ public class RaidPartyPlugin extends Plugin {
                 return 70;
             case RIGOUR:
                 return 74;
+            case ZEAL:
+                return 75;
             case AUGURY:
                 return 77;
             default:
@@ -1994,14 +2098,6 @@ public class RaidPartyPlugin extends Plugin {
             lastSentRunePouchHash = -1;
             lastSentXpsHash = -1;
             needsPartySync = true;
-            
-            // Ensure native party service is updated upon login
-            if (partyService != null && partyService.getLocalMember() != null) {
-                String name = getLocalPlayerName();
-                if (name != null && !name.isEmpty()) {
-                    partyService.getLocalMember().setDisplayName(name);
-                }
-            }
         }
     }
 
@@ -2353,7 +2449,10 @@ public class RaidPartyPlugin extends Plugin {
             }
             if (!first) sb.append("<col=ffffff>, </col>");
             
-            sb.append("<col=55aaff>").append(member.getDisplayName()).append("</col> ");
+            String displayName = (member.getDisplayName() != null && !"<unknown>".equalsIgnoreCase(member.getDisplayName()))
+                    ? member.getDisplayName()
+                    : (sync != null && sync.getUsername() != null ? sync.getUsername() : member.getDisplayName());
+            sb.append("<col=55aaff>").append(displayName).append("</col> ");
             
             if (sync != null && sync.getLootRule() != null && sync.getLootRule() != LootRule.UNSPECIFIED) {
                 String color = sync.getLootRule() == LootRule.FFA ? "af00af" : "00bfff";

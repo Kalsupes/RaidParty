@@ -413,9 +413,12 @@ public class DefenceTrackerTest
                 @Override public void invoke(Runnable runnable) { runnable.run(); }
                 @Override public void invokeLater(Runnable runnable) { deferred.add(runnable); }
             };
+            Constructor<?> wsConstructor = net.runelite.client.party.WSClient.class.getDeclaredConstructors()[0];
+            wsConstructor.setAccessible(true);
+            Object wsClient = wsConstructor.newInstance(new EventBus(), null, null, null);
             Constructor<?> constructor = PartyService.class.getDeclaredConstructors()[0];
             constructor.setAccessible(true);
-            party = (PartyService) constructor.newInstance(client, null, new EventBus(), null);
+            party = (PartyService) constructor.newInstance(client, wsClient, new EventBus(), null);
             tracker = new RaidPartyDefenceTracker(client, thread, party, config,
                 com.github.kalsupes.raidparty.TestPartySendPolicy.recording(party, sent));
             tracker.start(); tracker.onNpcSpawned(new NpcSpawned(npc));
@@ -427,8 +430,10 @@ public class DefenceTrackerTest
             sync = true;
             Field partyId = PartyService.class.getDeclaredField("partyId"); partyId.setAccessible(true); partyId.setLong(party, 10);
             Field memberId = PartyService.class.getDeclaredField("memberId"); memberId.setAccessible(true); memberId.setLong(party, 1);
-            PartyMember one = new PartyMember(1); one.setDisplayName("Local");
-            PartyMember two = new PartyMember(2); two.setDisplayName("Remote");
+            Constructor<PartyMember> mc = PartyMember.class.getDeclaredConstructor(long.class); mc.setAccessible(true);
+            Field dn = PartyMember.class.getDeclaredField("displayName"); dn.setAccessible(true);
+            PartyMember one = mc.newInstance(1L); dn.set(one, "Local");
+            PartyMember two = mc.newInstance(2L); dn.set(two, "Remote");
             Field members = PartyService.class.getDeclaredField("members"); members.setAccessible(true);
             List<PartyMember> list = (List<PartyMember>) members.get(party); list.add(one); list.add(two);
         }
